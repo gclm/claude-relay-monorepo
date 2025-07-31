@@ -31,6 +31,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
         run: |
           cd packages/backend
           
@@ -42,13 +43,16 @@ jobs:
           
           [[kv_namespaces]]
           binding = "CLAUDE_RELAY_ADMIN_KV"
-          id = "${{ secrets.KV_NAMESPACE_ID }}"
+          id = "${KV_NAMESPACE_ID}"
           
           [triggers]
           crons = ["0 */6 * * *"]
           
           [vars]
           NODE_ENV = "production"
+          
+          [observability.logs]
+          enabled = true
           EOF
           
           echo "Deploying backend with environment variables..."
