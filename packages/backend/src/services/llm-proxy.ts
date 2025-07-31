@@ -106,7 +106,12 @@ export class LLMProxyService {
    */
   private transformRequest(claudeRequest: ClaudeRequest, provider: LLMProvider): any {
     const transformedRequest = provider.transformer.transformRequestOut(claudeRequest)
-    transformedRequest.model = provider.model
+    const isGemini = provider.transformer.constructor.name === 'ClaudeToGeminiTransformer'
+    
+    if (!isGemini) {
+      transformedRequest.model = provider.model
+    }
+    
     return transformedRequest
   }
 
@@ -119,6 +124,8 @@ export class LLMProxyService {
     // 构建URL
     let url = provider.apiUrl
     if (isGemini) {
+      // 替换模型占位符
+      url = url.replace('{{model}}', provider.model)
       const urlObj = new URL(url)
       urlObj.searchParams.append('key', apiKey)
       if (isStream) {
@@ -190,15 +197,23 @@ export class LLMProxyService {
         }
       })
     } else {
-      const providerResponse = await response.json()
-      const claudeResponse = await provider.transformer.transformResponseIn(providerResponse)
-      return new Response(JSON.stringify(claudeResponse), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
-      })
+      try {
+        const responseText = await response.text()
+        console.log('📄 原始响应文本:', responseText)
+        const providerResponse = JSON.parse(responseText)
+        const claudeResponse = await provider.transformer.transformResponseIn(providerResponse)
+        return new Response(JSON.stringify(claudeResponse), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        })
+      } catch (parseError) {
+        console.error('❌ JSON 解析失败:', parseError)
+        console.error('❌ 响应内容:', 'Unable to read response text again')
+        throw new Error(`Failed to parse JSON: ${parseError}`)
+      }
     }
   }
 
