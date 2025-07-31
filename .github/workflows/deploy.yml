@@ -65,7 +65,7 @@ jobs:
             
       - name: Build Frontend
         env:
-          NUXT_PUBLIC_API_BASE_URL: https://claude-relay-backend.6f603f1daf9ecc8f155a8dc3f8cdb78d.workers.dev
+          NUXT_PUBLIC_API_BASE_URL: https://claude-relay-backend.117yelixin.workers.dev
         run: |
           cd packages/frontend
           npm run build

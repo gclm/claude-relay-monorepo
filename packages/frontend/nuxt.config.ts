@@ -85,7 +85,7 @@ export default defineNuxtConfig({
   // 环境变量配置
   runtimeConfig: {
     public: {
-      apiBaseUrl: 'https://claude-relay-backend.117yelixin.workers.dev',
+      apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'https://claude-relay-backend.117yelixin.workers.dev',
       appName: process.env.NUXT_PUBLIC_APP_NAME || 'Claude Relay Frontend',
       appVersion: process.env.NUXT_PUBLIC_APP_VERSION || '1.0.0'
     }
