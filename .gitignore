@@ -41,6 +41,9 @@ lerna-debug.log*
 packages/backend/wrangler.toml
 packages/frontend/wrangler.toml
 
+# Local KV Storage
+.kv-storage/
+
 # Testing
 coverage/
 .nyc_output/

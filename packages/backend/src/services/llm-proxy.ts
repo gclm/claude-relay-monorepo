@@ -4,6 +4,7 @@
  */
 
 import { ClaudeToOpenAITransformer } from './claude-to-openai-transformer'
+import { ClaudeToGeminiTransformer } from './claude-to-gemini-transformer'
 
 interface LLMProvider {
   name: string
@@ -29,6 +30,8 @@ export class LLMProxyService {
   constructor() {
     // 初始化转换器 - 使用自定义的Claude到OpenAI转换器
     this.transformers.set('claude-to-openai', new ClaudeToOpenAITransformer())
+    // 初始化Claude到Gemini转换器
+    this.transformers.set('claude-to-gemini', new ClaudeToGeminiTransformer())
     // 移除硬编码的供应商注册，改为动态配置
   }
 
@@ -71,76 +74,131 @@ export class LLMProxyService {
       throw new Error(`Provider ${providerName} not found`)
     }
 
-    // 使用提供的API Key或默认的
     const effectiveApiKey = apiKey || provider.apiKey
     if (!effectiveApiKey) {
       throw new Error(`API key required for provider ${providerName}`)
     }
 
     try {
-      // 使用AnthropicTransformer进行请求转换
-      // AnthropicTransformer.transformRequestOut: Claude格式 -> OpenAI格式
-      const transformedRequest = provider.transformer.transformRequestOut(claudeRequest)
+      // 1. 转换请求格式
+      const transformedRequest = this.transformRequest(claudeRequest, provider)
       
-      // 使用provider中配置的模型覆盖请求中的模型
-      transformedRequest.model = provider.model
+      // 2. 准备请求配置
+      const { url, headers } = this.prepareRequestConfig(provider, effectiveApiKey, claudeRequest.stream)
 
       console.log(`🚀 转发到${providerName}: ${claudeRequest.stream ? '🌊' : '📄'}`)
       console.log('🔍 转换后的请求:', JSON.stringify(transformedRequest, null, 2))
 
-      // 发送请求
-      const response = await fetch(provider.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${effectiveApiKey}`,
-          'User-Agent': 'Claude-Relay-LLM-Proxy/1.0'
-        },
-        body: JSON.stringify(transformedRequest)
-      })
+      // 3. 发送请求
+      const response = await this.sendRequest(url, headers, transformedRequest, providerName)
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`❌ ${providerName}请求失败: ${response.status}`, errorText)
-        throw new Error(`${providerName} API error: ${response.status}`)
-      }
-
-      const isStream = response.headers.get('Content-Type')?.includes('text/event-stream')
-
-      if (isStream) {
-        // 流式响应：使用转换器转换回Claude格式
-        const transformedStream = await provider.transformer.convertStreamToClaudeFormat(response.body!)
-
-        return new Response(transformedStream, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-          }
-        })
-      } else {
-        // 非流式响应：使用转换器转换回Claude格式
-        const providerResponse = await response.json()
-        const claudeResponse = await provider.transformer.transformResponseIn(providerResponse)
-
-        return new Response(JSON.stringify(claudeResponse), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-          }
-        })
-      }
+      // 4. 处理响应
+      return await this.processResponse(response, claudeRequest.stream, provider)
 
     } catch (error) {
       console.error(`${providerName}代理失败:`, error)
       throw error
+    }
+  }
+
+  /**
+   * 转换请求格式
+   */
+  private transformRequest(claudeRequest: ClaudeRequest, provider: LLMProvider): any {
+    const transformedRequest = provider.transformer.transformRequestOut(claudeRequest)
+    transformedRequest.model = provider.model
+    return transformedRequest
+  }
+
+  /**
+   * 准备请求配置
+   */
+  private prepareRequestConfig(provider: LLMProvider, apiKey: string, isStream?: boolean) {
+    const isGemini = provider.transformer.constructor.name === 'ClaudeToGeminiTransformer'
+    
+    // 构建URL
+    let url = provider.apiUrl
+    if (isGemini) {
+      const urlObj = new URL(url)
+      urlObj.searchParams.append('key', apiKey)
+      if (isStream) {
+        url = urlObj.toString().replace(':generateContent', ':streamGenerateContent')
+      } else {
+        url = urlObj.toString()
+      }
+    }
+
+    // 构建请求头
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Claude-Relay-LLM-Proxy/1.0'
+    }
+    
+    if (!isGemini) {
+      headers['Authorization'] = `Bearer ${apiKey}`
+    }
+
+    return { url, headers }
+  }
+
+  /**
+   * 发送请求
+   */
+  private async sendRequest(url: string, headers: Record<string, string>, body: any, providerName: string): Promise<Response> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ ${providerName}请求失败: ${response.status}`, errorText)
+      throw new Error(`${providerName} API error: ${response.status} - ${errorText}`)
+    }
+
+    return response
+  }
+
+  /**
+   * 处理响应
+   */
+  private async processResponse(response: Response, isStreamRequest: boolean | undefined, provider: LLMProvider): Promise<Response> {
+    const contentType = response.headers.get('Content-Type') || ''
+    const isGemini = provider.transformer.constructor.name === 'ClaudeToGeminiTransformer'
+    
+    const isStreamResponse = isStreamRequest && (
+      contentType.includes('text/event-stream') || 
+      (isGemini && contentType.includes('application/json'))
+    )
+
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+
+    if (isStreamResponse) {
+      const transformedStream = await provider.transformer.convertStreamToClaudeFormat(response.body!)
+      return new Response(transformedStream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          ...corsHeaders
+        }
+      })
+    } else {
+      const providerResponse = await response.json()
+      const claudeResponse = await provider.transformer.transformResponseIn(providerResponse)
+      return new Response(JSON.stringify(claudeResponse), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      })
     }
   }
 

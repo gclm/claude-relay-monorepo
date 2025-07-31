@@ -170,8 +170,8 @@ const availableModels = computed(() => {
 const isEndpointReadonly = computed(() => {
   // 编辑模式下可以编辑
   if (isEdit.value) return false
-  // 新增模式下，如果配置中有 endpoint 且不为空，则只读
-  return !!(currentProviderConfig.value?.endpoint)
+  // 对于预定义供应商，端点是只读的
+  return currentProviderConfig.value?.isPreset || false
 })
 
 // 监听选择的供应商类型，自动填充配置
@@ -203,10 +203,10 @@ watch(customModel, (newValue) => {
   }
 })
 
-const selectProviderType = (type: string) => {
-  selectedProviderType.value = type
-  console.log('Selected provider type:', type)
-  console.log('Provider config:', PROVIDER_CONFIGS[type as keyof typeof PROVIDER_CONFIGS])
+const selectProviderType = (configKey: string) => {
+  selectedProviderType.value = configKey
+  const config = PROVIDER_CONFIGS[configKey as keyof typeof PROVIDER_CONFIGS]
+  console.log('Selected provider config:', configKey, config)
 }
 
 const handleSubmit = () => {
@@ -221,12 +221,16 @@ const handleSubmit = () => {
     }
     emit('submit', editData)
   } else {
+    const config = currentProviderConfig.value
+    if (!config) return
+    
     const addData: AddProviderRequest = {
       name: form.value.name,
-      type: selectedProviderType.value as 'qwen' | 'openai',
+      type: config.type,
       endpoint: form.value.endpoint,
       apiKey: form.value.apiKey,
-      model: finalModel
+      model: finalModel,
+      transformer: config.transformer
     }
     emit('submit', addData)
   }

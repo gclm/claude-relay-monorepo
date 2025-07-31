@@ -12,22 +12,22 @@ export interface AdminAuthRequest {
 export interface ModelProvider {
   id: string
   name: string
-  type: 'qwen' | 'openai'
+  type: 'openai' | 'google'
   endpoint: string
   apiKey: string
   model: string  // 改为必填
   status: 'active' | 'inactive'
   createdAt: number
-  transformer?: 'claude-to-openai' | 'claude-to-claude'  // 可选，默认 'claude-to-openai'
+  transformer?: 'claude-to-openai' | 'claude-to-gemini'  // 可选，默认 'claude-to-openai'
 }
 
 export interface AddProviderRequest {
   name: string
-  type: 'qwen' | 'openai'
+  type: 'openai' | 'google'
   endpoint: string
   apiKey: string
   model: string  // 改为必填
-  transformer?: 'claude-to-openai' | 'claude-to-claude'
+  transformer?: 'claude-to-openai' | 'claude-to-gemini'
 }
 
 export interface EditProviderRequest {
@@ -35,7 +35,7 @@ export interface EditProviderRequest {
   endpoint: string
   apiKey: string
   model: string
-  transformer?: 'claude-to-openai' | 'claude-to-claude'
+  transformer?: 'claude-to-openai' | 'claude-to-gemini'
 }
 
 // 选中的模型
@@ -100,7 +100,10 @@ export interface ProviderConfig {
   name: string
   description: string
   icon: string
+  type: 'openai' | 'google'
   endpoint: string
   models: string[]
   helpText: string
+  transformer: 'claude-to-openai' | 'claude-to-gemini'
+  isPreset: boolean  // 是否为预定义供应商
 }

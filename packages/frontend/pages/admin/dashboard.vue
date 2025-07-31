@@ -175,7 +175,11 @@
                       </div>
                       <div>
                         <h4 class="text-lg font-bold text-gray-900">{{ provider.name }}</h4>
-                        <p class="text-sm text-gray-500 capitalize">{{ provider.type }} 模型</p>
+                        <p class="text-sm text-gray-500">
+                          <span v-if="provider.type === 'openai'">OpenAI 兼容模型</span>
+                          <span v-else-if="provider.type === 'google'">Google Gemini 模型</span>
+                          <span v-else>{{ provider.type }} 模型</span>
+                        </p>
                       </div>
                     </div>
                     <span :class="provider.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'"
