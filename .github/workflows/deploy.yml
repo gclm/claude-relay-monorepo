@@ -78,4 +78,5 @@ jobs:
           cd packages/frontend
           echo "Deploying frontend to Cloudflare Pages..."
           npx wrangler pages deploy dist \
-            --project-name=claude-relay-frontend
+            --project-name=claude-relay-frontend \
+            --commit-message="Deploy frontend from GitHub Actions"
