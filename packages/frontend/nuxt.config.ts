@@ -1,8 +1,9 @@
 export default defineNuxtConfig({
   // 兼容性日期
   compatibilityDate: '2025-07-27',
+  
   // 仅在开发模式启用devtools
-  devtools: { enabled: process.env.NODE_ENV === 'development' },
+  devtools: { enabled: false },  // 生产环境禁用
   
   // 精简的模块配置
   modules: [
@@ -13,11 +14,6 @@ export default defineNuxtConfig({
   // CSS 配置
   css: ['~/assets/css/main.css'],
   
-  // 构建优化
-  build: {
-    transpile: []
-  },
-  
   // Vite 配置优化
   vite: {
     build: {
@@ -27,19 +23,26 @@ export default defineNuxtConfig({
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['vue']
+            // 更细粒度的vendor分割
+            'vue-vendor': ['vue', 'vue-router'],
+            'pinia': ['pinia']
           }
         }
       },
       // 减少chunk大小阈值
-      chunkSizeWarningLimit: 1000
-    },
-    // WSL 环境下的热重载配置
-    server: {
-      watch: {
-        usePolling: true,
-        interval: 100
+      chunkSizeWarningLimit: 1500,
+      // 压缩配置
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true,  // 生产环境移除console
+          drop_debugger: true
+        }
       }
+    },
+    // 优化依赖预构建
+    optimizeDeps: {
+      include: ['vue', 'vue-router', 'pinia']
     }
   },
   
@@ -50,17 +53,32 @@ export default defineNuxtConfig({
       dir: 'dist',
       publicDir: 'dist'
     },
+    // 压缩
+    compressPublicAssets: true,
     // 预渲染优化
     prerender: {
-      crawlLinks: false
+      crawlLinks: false,
+      routes: ['/']  // 明确指定预渲染路由
     },
     // 路由缓存规则
     routeRules: {
       // 首页预渲染，构建时生成静态HTML
-      '/': { prerender: true },
+      '/': { 
+        prerender: true,
+        headers: { 'cache-control': 's-maxage=86400' }  // CDN缓存1天
+      },
+      // 管理页面不缓存
+      '/admin/**': { 
+        headers: { 'cache-control': 'no-cache, no-store, must-revalidate' }
+      },
       // 静态资源长期缓存
-      '/_nuxt/**': { headers: { 'cache-control': 'max-age=31536000' } },
-      // API路由不适用于前端，这里移除
+      '/_nuxt/**': { 
+        headers: { 'cache-control': 'public, max-age=31536000, immutable' }
+      },
+      // 图片等资源缓存
+      '/images/**': { 
+        headers: { 'cache-control': 'public, max-age=86400' }
+      }
     }
   },
   
@@ -69,13 +87,27 @@ export default defineNuxtConfig({
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:8787',
       appName: process.env.NUXT_PUBLIC_APP_NAME || 'Claude Relay Frontend',
-      appVersion: process.env.NUXT_PUBLIC_APP_VERSION || '1.0.0',
-      nodeEnv: process.env.NODE_ENV || 'production'
+      appVersion: process.env.NUXT_PUBLIC_APP_VERSION || '1.0.0'
     }
   },
   
   // Tailwind CSS 配置
   tailwindcss: {
-    cssPath: '~/assets/css/main.css'
+    cssPath: '~/assets/css/main.css',
+    config: {
+      content: []  // 使用默认配置
+    }
+  },
+  
+  // TypeScript 配置
+  typescript: {
+    strict: true,
+    shim: false  // 不需要shim，减少构建开销
+  },
+  
+  // 实验性功能
+  experimental: {
+    payloadExtraction: false,  // 禁用payload提取，减少构建体积
+    viewTransition: false      // 禁用视图过渡
   }
 })

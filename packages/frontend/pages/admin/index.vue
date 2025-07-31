@@ -56,7 +56,8 @@
                   <input 
                     id="password" 
                     v-model="form.password"
-                    type="password" 
+                    type="password"
+                    autocomplete="current-password"
                     required 
                     class="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200" 
                     placeholder="登录密码">

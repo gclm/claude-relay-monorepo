@@ -6,7 +6,8 @@
 
 ### 核心开发命令
 - `npm run dev:frontend` - 启动 Nuxt 前端开发服务器 (localhost:3000)
-- `npm run dev:backend` - 使用 Wrangler 启动 Hono 后端开发服务器
+- `npm run dev:backend` - 使用 Bun 启动 Hono 后端开发服务器 (localhost:8787，更快的启动速度)
+- `npm run dev:backend:wrangler` - 使用 Wrangler 启动后端（模拟 Cloudflare Workers 环境）
 - `npm run build:all` - 同时构建前端和后端
 - `npm run deploy:all` - 构建并部署两个服务到 Cloudflare（先部署后端，再部署前端）
 
@@ -83,6 +84,20 @@
 - 共享类型确保前后端 API 契约一致性
 - 所有包都启用 TypeScript 严格模式
 - 后端作为 Claude Code 请求转发代理，支持来自任意客户端的访问
+
+#### 后端本地开发模式
+后端支持两种本地开发模式：
+1. **Bun 模式（推荐）** - `npm run dev:backend`
+   - 使用 Bun 运行时启动，启动速度快
+   - 使用本地 KV 存储（`.kv-storage/` 目录）
+   - 支持热重载（`--hot` 标志）
+   - 适合快速开发和测试
+   
+2. **Wrangler 模式** - `npm run dev:backend:wrangler`
+   - 使用 Wrangler 模拟完整的 Cloudflare Workers 环境
+   - 更接近生产环境的行为
+   - 启动较慢但更真实的环境模拟
+   - 适合部署前的最终测试
 
 ## 后端 API 架构
 

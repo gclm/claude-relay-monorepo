@@ -8,6 +8,7 @@
   "scripts": {
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
+    "dev:backend:wrangler": "npm run dev:wrangler --workspace=backend",
     "build:frontend": "npm run build --workspace=frontend",
     "build:backend": "npm run build --workspace=backend",
     "build:all": "npm run build:frontend && npm run build:backend",
