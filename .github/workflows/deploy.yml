@@ -68,5 +68,5 @@ jobs:
         run: |
           cd packages/frontend
           echo "Deploying frontend to Cloudflare Pages..."
-          npx wrangler pages deploy .output/public \
+          npx wrangler pages deploy dist \
             --project-name=claude-relay-frontend
