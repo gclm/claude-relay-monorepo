@@ -55,8 +55,11 @@ jobs:
           enabled = true
           EOF
           
+          echo "Generated wrangler.toml content:"
+          cat wrangler.toml
+          
           echo "Deploying backend with environment variables..."
-          npx wrangler deploy \
+          npx wrangler deploy --config wrangler.toml \
             --var ADMIN_USERNAME:"${{ secrets.ADMIN_USERNAME }}" \
             --var ADMIN_PASSWORD:"${{ secrets.ADMIN_PASSWORD }}"
             
