@@ -35,11 +35,11 @@ export class LLMProxyService {
   /**
    * 从ModelProvider配置动态注册供应商
    */
-  async registerProviderFromConfig(provider: ModelProvider, initialApiKey?: string) {
+  async registerProviderFromConfig(provider: ModelProvider) {
     const transformer = this.getTransformerForProvider(provider)
     
-    // 初始化 Key Pool
-    await this.keyPoolManager.initializeFromProvider(provider, initialApiKey)
+    // 初始化 Key Pool（不传递 initialApiKey，所有密钥从 Key Pool 管理）
+    await this.keyPoolManager.initializeFromProvider(provider)
     
     this.registerProvider({
       name: provider.id,

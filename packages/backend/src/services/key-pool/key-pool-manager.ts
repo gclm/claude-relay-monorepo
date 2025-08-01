@@ -56,18 +56,9 @@ export class KeyPoolManager {
   /**
    * 从供应商配置初始化 Key Pool
    */
-  async initializeFromProvider(provider: ModelProvider, initialApiKey?: string): Promise<BaseKeyPool> {
+  async initializeFromProvider(provider: ModelProvider): Promise<BaseKeyPool> {
     const pool = await this.getOrCreatePool(provider.id, provider.type)
-    
-    // 如果提供了初始 API Key，添加到池中
-    if (initialApiKey) {
-      const keys = await pool.getKeys()
-      if (keys.length === 0) {
-        await pool.addKey(initialApiKey)
-        console.log(`🔑 Added initial API key to pool ${provider.id}`)
-      }
-    }
-    
+    // 不再自动添加密钥，所有密钥通过 Key Pool API 管理
     return pool
   }
 

@@ -196,12 +196,25 @@
                     </div>
                     <div class="flex items-center space-x-2 text-sm">
                       <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                      </svg>
+                      <span class="text-gray-600">模型: {{ provider.model }}</span>
+                    </div>
+                    <div class="flex items-center space-x-2 text-sm">
+                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
                       </svg>
-                      <span class="text-gray-600">{{ maskApiKey(provider.apiKey) }}</span>
+                      <span class="text-gray-600">密钥池: {{ keyPoolStatuses.get(provider.id) || '加载中...' }}</span>
                     </div>
                   </div>
                   <div class="flex space-x-2">
+                    <NuxtLink :to="`/admin/key-pool/${provider.id}`" 
+                            class="px-4 py-2 text-emerald-600 hover:text-emerald-700 rounded-xl border border-emerald-200 hover:border-emerald-300 transition duration-200 text-sm inline-flex items-center">
+                      <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                      </svg>
+                      密钥池
+                    </NuxtLink>
                     <button @click="editProvider(provider)" 
                             class="px-4 py-2 text-orange-600 hover:text-orange-700 rounded-xl border border-orange-200 hover:border-orange-300 transition duration-200 text-sm">
                       编辑
@@ -460,6 +473,7 @@
 import type { DashboardData } from '../../../../shared/types/admin/dashboard'
 import type { ModelProvider, EditProviderRequest } from '../../../../shared/types/admin/providers'
 import type { ClaudeAccount, AddClaudeAccountRequest } from '../../../../shared/types/admin/claude-accounts'
+import type { KeyPoolStats } from '../../../../shared/types/key-pool'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
 
 useHead({
@@ -471,11 +485,17 @@ useHead({
 
 const config = useRuntimeConfig()
 const router = useRouter()
+const route = useRoute()
 
-const activeTab = ref('claude-accounts')
+// 从 query 参数获取默认 tab，如果没有则默认为 'claude-accounts'
+const activeTab = ref(route.query.tab as string || 'claude-accounts')
 const dashboard = ref<DashboardData | null>(null)
 const providers = ref<ModelProvider[]>([])
 const availableModels = ref<Array<{ id: string; name: string; type: 'official' | 'provider'; providerId?: string }>>([])
+const keyPoolStatuses = ref<Map<string, string>>(new Map())
+
+// 使用 composable
+const { getMultipleKeyPoolStats, formatKeyPoolStatus } = useKeyPool()
 
 // Claude 账号相关数据
 const claudeAccounts = ref<ClaudeAccount[]>([])
@@ -525,10 +545,26 @@ const loadProviders = async () => {
     )
     if (response.success) {
       providers.value = response.data
+      // 加载所有供应商的密钥池状态
+      await loadKeyPoolStatuses()
     }
   } catch (error) {
     console.error('Failed to load providers:', error)
   }
+}
+
+const loadKeyPoolStatuses = async () => {
+  if (providers.value.length === 0) return
+  
+  const providerIds = providers.value.map(p => p.id)
+  const statsMap = await getMultipleKeyPoolStats(providerIds)
+  
+  // 更新状态显示
+  keyPoolStatuses.value.clear()
+  providers.value.forEach(provider => {
+    const stats = statsMap.get(provider.id) || null
+    keyPoolStatuses.value.set(provider.id, formatKeyPoolStatus(stats))
+  })
 }
 
 const loadAvailableModels = async () => {
@@ -634,19 +670,13 @@ const deleteProvider = async (id: string) => {
   }
 }
 
-const maskApiKey = (apiKey: string) => {
-  if (!apiKey) return ''
-  if (apiKey.length <= 8) return apiKey
-  return apiKey.substring(0, 4) + '***' + apiKey.substring(apiKey.length - 4)
-}
-
 const logout = async () => {
   sessionStorage.removeItem('admin_authenticated')
   sessionStorage.removeItem('admin_username')
   await router.push('/admin')
 }
 
-const showNotification = (message: string, type: 'success' | 'error' = 'info') => {
+const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   // 简单的通知实现
   const notification = document.createElement('div')
   notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-xl text-white font-medium shadow-lg transform translate-x-full transition-transform duration-300 ${

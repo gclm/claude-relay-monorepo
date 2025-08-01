@@ -86,27 +86,21 @@
         </div>
       </div>
 
-      <!-- API Key -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">
-          API Key <span class="text-red-500">*</span>
-        </label>
-        <div class="relative">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+      <!-- API Key 管理提示 -->
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div class="flex items-start space-x-3">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
           </div>
-          <input type="password" 
-                 v-model="form.apiKey"
-                 required
-                 autocomplete="new-password"
-                 class="block w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
-                 placeholder="请输入您的 API Key">
+          <div>
+            <h4 class="text-sm font-medium text-blue-900">API 密钥管理</h4>
+            <p class="mt-1 text-sm text-blue-700">
+              创建供应商后，请前往 <strong>密钥池管理</strong> 页面添加和管理 API 密钥。密钥池支持批量导入、智能轮换和故障恢复功能。
+            </p>
+          </div>
         </div>
-        <p v-if="currentProviderConfig?.helpText" class="mt-2 text-xs text-gray-500">
-          {{ currentProviderConfig.helpText }}
-        </p>
       </div>
 
       <!-- 按钮 -->
@@ -153,7 +147,6 @@ const customModel = ref('')
 const form = ref({
   name: props.provider?.name || '',
   endpoint: props.provider?.endpoint || '',
-  apiKey: props.provider?.apiKey || '',
   model: props.provider?.model || ''
 })
 
@@ -216,7 +209,6 @@ const handleSubmit = () => {
     const editData: EditProviderRequest = {
       name: form.value.name,
       endpoint: form.value.endpoint,
-      apiKey: form.value.apiKey,
       model: finalModel
     }
     emit('submit', editData)
@@ -228,7 +220,6 @@ const handleSubmit = () => {
       name: form.value.name,
       type: config.type,
       endpoint: form.value.endpoint,
-      apiKey: form.value.apiKey,
       model: finalModel,
       transformer: config.transformer
     }
@@ -244,7 +235,6 @@ const handleCancel = () => {
     form.value = {
       name: '',
       endpoint: '',
-      apiKey: '',
       model: ''
     }
     customModel.value = ''
@@ -257,7 +247,6 @@ const resetForm = () => {
   form.value = {
     name: '',
     endpoint: '',
-    apiKey: '',
     model: ''
   }
   customModel.value = ''

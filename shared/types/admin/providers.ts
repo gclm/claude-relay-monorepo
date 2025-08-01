@@ -20,7 +20,6 @@ export interface AddProviderRequest {
   endpoint: string
   model: string
   transformer?: 'claude-to-openai' | 'claude-to-gemini'
-  initialApiKey?: string  // 初始 API Key（可选）
 }
 
 export interface EditProviderRequest {

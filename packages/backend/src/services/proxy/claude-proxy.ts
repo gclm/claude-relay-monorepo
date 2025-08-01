@@ -130,7 +130,7 @@ export class ClaudeProxyService {
       
       console.log(`🚀 转发到${provider.name}: ${claudeRequest.stream ? '🌊' : '📄'}`)
 
-      // 动态注册供应商到 llmProxy
+      // 动态注册供应商到 llmProxy（不再传递 apiKey，所有密钥从 Key Pool 获取）
       await this.llmProxy.registerProviderFromConfig(provider)
       
       // 使用provider.id作为providerType，确保与注册时一致

@@ -50,10 +50,8 @@ export class ProviderService {
 
     await this.providerRepo.add(newProvider)
     
-    // 如果提供了初始 API Key，创建 Key Pool 并添加 Key
-    if (request.initialApiKey) {
-      await this.keyPoolManager.initializeFromProvider(newProvider, request.initialApiKey)
-    }
+    // 初始化 Key Pool（密钥通过 Key Pool API 单独管理）
+    await this.keyPoolManager.initializeFromProvider(newProvider)
     
     return newProvider
   }

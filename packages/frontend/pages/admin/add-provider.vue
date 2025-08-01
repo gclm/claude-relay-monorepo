@@ -11,7 +11,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center space-x-4">
-            <NuxtLink to="/admin/dashboard" 
+            <NuxtLink to="/admin/dashboard?tab=providers" 
                      class="flex items-center space-x-2 text-orange-600 hover:text-orange-700 px-3 py-2 rounded-xl hover:bg-white/50 transition duration-200">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -85,7 +85,9 @@ onMounted(() => {
   }
 })
 
-const handleSubmit = async (data: AddProviderRequest) => {
+const handleSubmit = async (data: AddProviderRequest | EditProviderRequest) => {
+  // 添加供应商页面只会收到 AddProviderRequest
+  const addData = data as AddProviderRequest
   loading.value = true
   error.value = ''
 
@@ -95,14 +97,14 @@ const handleSubmit = async (data: AddProviderRequest) => {
       {
         method: 'POST',
         baseURL: config.public.apiBaseUrl,
-        body: data
+        body: addData
       }
     )
 
     if (response.success) {
       showNotification('模型供应商添加成功！', 'success')
       setTimeout(() => {
-        router.push('/admin/dashboard')
+        router.push('/admin/dashboard?tab=providers')
       }, 1500)
     }
   } catch (err: any) {
@@ -118,7 +120,7 @@ const handleSubmit = async (data: AddProviderRequest) => {
 }
 
 const handleCancel = () => {
-  router.push('/admin/dashboard')
+  router.push('/admin/dashboard?tab=providers')
 }
 
 const logout = async () => {
@@ -127,7 +129,7 @@ const logout = async () => {
   await router.push('/admin')
 }
 
-const showNotification = (message: string, type: 'success' | 'error' = 'info') => {
+const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
   const notification = document.createElement('div')
   notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-xl text-white font-medium shadow-lg transform translate-x-full transition-transform duration-300 ${
     type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-orange-500'

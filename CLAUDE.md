@@ -66,6 +66,7 @@
 - **缓存策略**: 路由级缓存控制，静态资源长期缓存
 - **开发优化**: 禁用类型检查、压缩等提升开发启动速度
 - **环境变量管理**: 开发环境自动连接本地后端，生产环境连接部署的后端
+- **智能标签页导航**: 从供应商相关页面返回时自动显示供应商标签页
 
 #### 共享代码策略
 - **类型定义**: 管理相关(`admin.ts`)、通用 API(`api.ts`)、认证(`auth.ts`)
@@ -187,7 +188,22 @@
   - `ProvidersService` (`src/services/admin/providers.ts`) - 供应商管理
   - `ModelsService` (`src/services/admin/models.ts`) - 模型选择和切换
   - `ClaudeAccountService` (`src/services/admin/claude-accounts.ts`) - Claude 账号管理
+  - `KeyPoolService` (`src/services/admin/key-pool.ts`) - Key Pool 密钥池管理
 - **特性**: 模块化设计、职责单一、易于维护和测试
+
+#### KeyPoolService (密钥池管理服务)
+- **文件**: `src/services/admin/key-pool.ts`
+- **职责**: 管理多个供应商的 API 密钥池，提供密钥的增删改查和统计功能
+- **核心方法**:
+  - `getKeyPoolStatus(providerId)` - 获取指定供应商的密钥池状态和密钥列表
+  - `addKey(providerId, keyData)` - 向密钥池添加新的 API 密钥
+  - `updateKeyStatus(providerId, keyId, status)` - 更新指定密钥的状态
+  - `deleteKey(providerId, keyId)` - 删除指定的 API 密钥
+  - `batchAddKeys(providerId, keys)` - 批量添加多个 API 密钥
+  - `batchOperateKeys(providerId, operation, keyIds)` - 批量操作密钥（启用/禁用/删除）
+  - `getKeyPoolStats(providerId)` - 获取密钥池的详细统计信息
+  - `performMaintenance(providerId)` - 执行密钥池维护任务
+- **特性**: 企业级密钥管理、批量操作支持、实时统计监控、集成 Key Pool Manager
 
 ### 数据存储设计
 
@@ -201,12 +217,12 @@
 'admin_model_providers': ModelProvider[]    // 模型供应商列表
 'admin_selected_model': SelectedModel       // 当前选中的模型
 
-// 供应商配置（敏感信息）
+// 供应商配置（不含敏感信息）
 'admin_provider_{{id}}': {
-  apiKey: string,
   endpoint: string,
   model: string,
   transformer: string
+  // 注意：API 密钥统一通过 Key Pool 管理，不存储在供应商配置中
 }
 
 // Key Pool 管理
@@ -294,7 +310,8 @@ packages/backend/src/
 │   │   ├── dashboard.ts                      # 仪表板路由
 │   │   ├── providers.ts                     # 供应商管理路由
 │   │   ├── models.ts                         # 模型管理路由
-│   │   └── claude-accounts.ts                # Claude 账号管理路由
+│   │   ├── claude-accounts.ts                # Claude 账号管理路由
+│   │   └── key-pool.ts                       # Key Pool 管理路由
 │   └── proxy/                                # 代理路由模块
 │       ├── index.ts                          # 代理路由入口
 │       └── claude.ts                         # Claude API 代理路由
@@ -306,7 +323,8 @@ packages/backend/src/
 │   │   ├── dashboard.ts                      # 仪表板服务
 │   │   ├── providers.ts                     # 供应商管理服务
 │   │   ├── models.ts                         # 模型管理服务
-│   │   └── claude-accounts.ts                # Claude 账号管理服务
+│   │   ├── claude-accounts.ts                # Claude 账号管理服务
+│   │   └── key-pool.ts                       # Key Pool 管理服务
 │   ├── proxy/                                # 代理服务模块
 │   │   ├── index.ts                          # 代理服务入口
 │   │   ├── claude-proxy.ts                   # Claude 智能代理服务
@@ -394,6 +412,15 @@ shared/
 - **错误优先**: 完善的错误处理和用户友好的错误信息
 - **无状态设计**: 利用 KV 存储实现状态持久化，支持多实例部署
 
+#### API 密钥管理最佳实践
+- **统一 Key Pool 管理**: 所有 API 密钥必须通过 Key Pool 系统管理，不在供应商配置中存储
+- **安全存储**: API 密钥加密存储在专用的 KV 存储空间中
+- **智能轮换**: 支持多种轮换策略，避免单个密钥过载
+- **故障隔离**: 单个密钥故障不影响整体服务可用性
+- **实时监控**: 持续监控密钥使用情况和健康状态
+- **批量管理**: 支持企业级的批量密钥导入和管理操作
+- **自动恢复**: 故障密钥定时自动检测和恢复机制
+
 #### 性能优化策略
 - **流式响应**: 直接转发流式响应，支持 Claude 和 OpenAI 格式
 - **智能路由**: 根据选中模型动态路由，避免不必要的转换
@@ -456,9 +483,9 @@ shared/
 3. **填写配置信息**: 
    - 供应商名称和描述
    - API 端点 URL
-   - API 密钥
    - 模型名称
    - 转换器类型（自动选择或手动指定）
+   - 注意：API 密钥统一通过 Key Pool 管理，不在此处配置
 4. **保存配置**: 供应商配置安全存储到 KV
 5. **选择使用**: 在模型选择页面切换到新添加的供应商
 
@@ -474,18 +501,32 @@ shared/
 
 ### Key Pool 管理功能
 
+Key Pool 是 Claude Relay 的企业级核心功能，提供了完整的 API 密钥生命周期管理解决方案。
+
 #### Key Pool 功能特性
-1. **批量密钥管理**: 支持批量导入、启用、禁用和删除 API 密钥
-2. **智能轮换策略**: 支持 round-robin、random、least-used 等多种轮换策略
-3. **故障自动恢复**: 自动检测速率限制和 API 错误，定时恢复不可用的密钥
-4. **实时统计监控**: 追踪每个密钥的使用次数、成功率、失败原因等详细统计
-5. **负载均衡**: 根据密钥性能和使用情况智能分配请求
+1. **企业级密钥管理**: 支持大规模 API 密钥的统一管理和监控
+2. **批量操作支持**: 支持批量导入、启用、禁用和删除 API 密钥
+3. **智能轮换策略**: 支持 round-robin、random、least-used 等多种轮换策略
+4. **故障自动恢复**: 自动检测速率限制和 API 错误，定时恢复不可用的密钥
+5. **实时统计监控**: 追踪每个密钥的使用次数、成功率、失败原因等详细统计
+6. **负载均衡**: 根据密钥性能和使用情况智能分配请求
+7. **安全存储**: 密钥加密存储，与供应商配置分离管理
+8. **维护任务**: 支持手动和自动的密钥池维护操作
+
+#### Key Pool 管理界面
+在管理中心的供应商标签页中，每个供应商都有专门的 Key Pool 管理入口：
+- **密钥列表**: 显示所有密钥的状态、使用统计和健康情况
+- **批量导入**: 支持一次性导入多个 API 密钥
+- **状态管理**: 单独或批量启用/禁用密钥
+- **统计图表**: 可视化显示密钥使用情况和性能指标
+- **维护工具**: 一键执行密钥池清理和恢复任务
 
 #### Key Pool 使用场景
 - **高并发场景**: 多个 API 密钥轮换使用，避免单个密钥达到速率限制
 - **企业级部署**: 统一管理多个供应商的大量 API 密钥
 - **故障容错**: 某个密钥失效时自动切换到其他可用密钥
 - **成本优化**: 根据密钥使用情况优化 API 调用成本
+- **合规管理**: 集中管理和审计 API 密钥的使用情况
 
 #### Key Pool 工作原理
 1. **密钥注册**: 将多个 API 密钥添加到对应供应商的密钥池
@@ -493,6 +534,17 @@ shared/
 3. **智能选择**: 根据配置的轮换策略选择最优密钥
 4. **错误处理**: 检测到错误时标记密钥状态，必要时切换到备用密钥
 5. **自动恢复**: 定时重试被标记为错误的密钥，恢复其可用状态
+6. **统计收集**: 实时收集使用数据，为智能调度提供依据
+
+#### Key Pool API 管理端点
+- `GET /api/admin/key-pool/:providerId` - 获取指定供应商的密钥池状态和密钥列表
+- `POST /api/admin/key-pool/:providerId/keys` - 向密钥池添加新的 API 密钥
+- `PUT /api/admin/key-pool/:providerId/keys/:keyId` - 更新指定密钥的状态（启用/禁用）
+- `DELETE /api/admin/key-pool/:providerId/keys/:keyId` - 删除指定的 API 密钥
+- `POST /api/admin/key-pool/:providerId/keys/batch` - 批量添加多个 API 密钥
+- `POST /api/admin/key-pool/:providerId/keys/batch-operation` - 批量操作密钥（启用/禁用/删除）
+- `GET /api/admin/key-pool/:providerId/stats` - 获取密钥池的详细统计信息和性能指标
+- `POST /api/admin/key-pool/:providerId/maintenance` - 执行密钥池维护任务（清理、恢复等）
 
 ### 页面结构
 
@@ -502,8 +554,9 @@ shared/
 ├── /admin/dashboard      # 主仪表板
 │   ├── Claude 账号标签页  # Claude 账号管理（默认页面）
 │   ├── 模型供应商标签页    # 第三方 AI 模型供应商管理
+│   │   └── Key Pool 管理 # 每个供应商的密钥池管理入口
 │   └── 模型选择标签页      # 选择默认使用的模型
-└── /admin/add-provider   # 添加供应商页面
+└── /admin/add-provider   # 添加供应商页面（智能导航返回到供应商标签页）
 ```
 
 ### 部署配置
