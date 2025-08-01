@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createTestApp, createTestRequest, clearTestData } from '../../../helpers'
-import type { ModelProvider } from '../../../../../shared/types/admin/providers'
+import type { ModelProvider } from '../../../../../../shared/types/admin/providers'
 
 describe('Provider Routes', () => {
   let app: ReturnType<typeof createTestApp>
@@ -31,6 +31,7 @@ describe('Provider Routes', () => {
           type: 'openai',
           endpoint: 'https://api.test1.com',
           model: 'test-model-1',
+          status: 'active',
           transformer: 'claude-to-openai',
           description: 'Test provider 1',
           createdAt: new Date().toISOString(),
@@ -42,6 +43,7 @@ describe('Provider Routes', () => {
           type: 'gemini',
           endpoint: 'https://api.test2.com',
           model: 'test-model-2',
+          status: 'active',
           transformer: 'claude-to-gemini',
           description: 'Test provider 2',
           createdAt: new Date().toISOString(),
@@ -120,6 +122,7 @@ describe('Provider Routes', () => {
         type: 'openai',
         endpoint: 'https://api.original.com',
         model: 'original-model',
+        status: 'active',
         transformer: 'claude-to-openai',
         description: 'Original description',
         createdAt: new Date().toISOString(),
@@ -179,6 +182,7 @@ describe('Provider Routes', () => {
           type: 'openai',
           endpoint: 'https://api.test1.com',
           model: 'model-1',
+          status: 'active',
           transformer: 'claude-to-openai',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -189,6 +193,7 @@ describe('Provider Routes', () => {
           type: 'gemini',
           endpoint: 'https://api.test2.com',
           model: 'model-2',
+          status: 'active',
           transformer: 'claude-to-gemini',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -220,6 +225,7 @@ describe('Provider Routes', () => {
         type: 'openai',
         endpoint: 'https://api.test.com',
         model: 'model-1',
+        status: 'active',
         transformer: 'claude-to-openai',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()

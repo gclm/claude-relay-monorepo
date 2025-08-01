@@ -5,7 +5,7 @@
 export interface ModelProvider {
   id: string
   name: string
-  type: 'openai' | 'google'
+  type: 'openai' | 'gemini'
   endpoint: string
   model: string
   status: 'active' | 'inactive'
@@ -18,7 +18,7 @@ export interface ModelProvider {
 
 export interface AddProviderRequest {
   name: string
-  type: 'openai' | 'google'
+  type: 'openai' | 'gemini'
   endpoint: string
   model: string
   transformer?: 'claude-to-openai' | 'claude-to-gemini'
@@ -38,7 +38,7 @@ export interface ProviderConfig {
   name: string
   description: string
   icon: string
-  type: 'openai' | 'google'
+  type: 'openai' | 'gemini'
   endpoint: string
   models: string[]
   helpText: string
