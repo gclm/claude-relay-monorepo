@@ -1,80 +1,62 @@
-import { Hono } from 'hono'
-import { HTTPException } from 'hono/http-exception'
-import type { Bindings } from '../src/types/env'
-import { testKV } from './setup'
-import { ERROR_TYPES } from '../../../shared/constants/errors'
+import { LocalKVStorage } from '../src/utils/local-kv-storage'
+
+// 全局测试 KV 存储实例，在所有测试间共享但在每次测试前清理
+let globalTestKV: LocalKVStorage | null = null
 
 /**
- * 创建测试用的 Hono app 实例
+ * 获取或创建全局测试 KV 存储实例
  */
-export function createTestApp() {
-  const app = new Hono<{ Bindings: Bindings }>()
-  
-  // 添加测试环境的绑定
-  app.use('*', async (c, next) => {
-    // 确保 env 对象存在
-    if (!c.env) {
-      c.env = {} as any
-    }
-    
-    // 模拟 KV 绑定
-    c.env.CLAUDE_RELAY_ADMIN_KV = testKV as any
-    
-    // 设置环境变量
-    c.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'test-admin'
-    c.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'test-password'
-    c.env.NODE_ENV = 'test'
-    
-    await next()
-  })
-  
-  // 添加错误处理器 (模拟主应用的错误处理)
-  app.onError((err, c) => {
-    console.error(`Test Error in ${c.req.method} ${c.req.path}:`, err)
-    
-    // 处理 HTTPException
-    if (err instanceof HTTPException) {
-      const status = err.status
-      
-      // 根据状态码映射到错误类型
-      const errorType = getErrorTypeFromStatus(status)
-      
-      return c.json({
-        success: false,
-        error: {
-          type: errorType,
-          message: err.message
-        },
-        timestamp: new Date().toISOString()
-      }, status)
-    }
-    
-    // 处理其他错误
-    return c.json({
-      success: false,
-      error: {
-        type: ERROR_TYPES.INTERNAL_ERROR,
-        message: err.message
-      },
-      timestamp: new Date().toISOString()
-    }, 500)
-  })
-  
-  return app
+function getTestKV(): LocalKVStorage {
+  if (!globalTestKV) {
+    globalTestKV = new LocalKVStorage('.kv-storage-test')
+  }
+  return globalTestKV
 }
 
 /**
- * 根据 HTTP 状态码获取错误类型
+ * 清理测试数据
  */
-function getErrorTypeFromStatus(status: number): string {
-  const statusToErrorType: Record<number, string> = {
-    400: ERROR_TYPES.INVALID_REQUEST,
-    401: ERROR_TYPES.UNAUTHORIZED,
-    404: ERROR_TYPES.RESOURCE_NOT_FOUND,
-    500: ERROR_TYPES.INTERNAL_ERROR
+export async function clearTestData() {
+  const kv = getTestKV()
+  const result = await kv.list()
+  for (const key of result.keys) {
+    await kv.delete(key.name)
+  }
+}
+
+/**
+ * 创建测试用的应用实例
+ * 直接复用 index.bun.ts 的逻辑，但使用独立的 KV 存储实例避免测试数据污染
+ */
+export function createTestApp() {
+  const testKVStorage = getTestKV()
+  
+  // 创建测试用的 fetch 函数，复用 bun app 的环境设置逻辑
+  const testFetch = async (request: Request) => {
+    // 复用 index.bun.ts 的环境设置，但使用测试专用的 KV 存储
+    const env = {
+      NODE_ENV: 'test',
+      ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'test-admin',
+      ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'test-password',
+      CLAUDE_RELAY_ADMIN_KV: testKVStorage
+    }
+    
+    // 创建最小的 ExecutionContext
+    const ctx = {
+      waitUntil: (_promise: Promise<any>) => { /* 测试中不执行 */ },
+      passThroughOnException: () => { /* 测试中不执行 */ }
+    }
+    
+    // 直接调用 worker app 的 fetch（index.bun.ts 内部使用的同一个）
+    const workerApp = await import('../src/index')
+    return workerApp.default.fetch(request, env, ctx as any)
   }
   
-  return statusToErrorType[status] || ERROR_TYPES.INTERNAL_ERROR
+  return {
+    request: testFetch,
+    // 暴露 KV 存储实例，方便测试中直接访问
+    kv: testKVStorage
+  }
 }
 
 /**

@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createTestApp, createTestRequest } from '../../../helpers'
-import { testKV } from '../../../setup'
-import { providerRoutes } from '../../../../src/routes/admin/providers'
+import { createTestApp, createTestRequest, clearTestData } from '../../../helpers'
 import type { ModelProvider } from '../../../../../shared/types/admin/providers'
 
 describe('Provider Routes', () => {
   let app: ReturnType<typeof createTestApp>
   
-  beforeEach(() => {
+  beforeEach(async () => {
+    // 每次测试前清理数据
+    await clearTestData()
     app = createTestApp()
-    app.route('/api/admin', providerRoutes)
+    // 主应用已经包含所有路由，无需手动挂载
   })
   
   describe('GET /api/admin/providers', () => {
@@ -49,7 +49,7 @@ describe('Provider Routes', () => {
         }
       ]
       
-      await testKV.put('admin_model_providers', JSON.stringify(providers))
+      await app.kv.put('admin_model_providers', JSON.stringify(providers))
       
       const req = createTestRequest('/api/admin/providers')
       const res = await app.request(req)
@@ -88,7 +88,7 @@ describe('Provider Routes', () => {
       expect(data.data.id).toBeDefined()
       
       // 验证是否保存到 KV
-      const providers = await testKV.get('admin_model_providers', { type: 'json' })
+      const providers = await app.kv.get('admin_model_providers', { type: 'json' })
       expect(providers).toHaveLength(1)
       expect(providers[0].name).toBe('New Provider')
     })
@@ -126,7 +126,7 @@ describe('Provider Routes', () => {
         updatedAt: new Date().toISOString()
       }
       
-      await testKV.put('admin_model_providers', JSON.stringify([provider]))
+      await app.kv.put('admin_model_providers', JSON.stringify([provider]))
       
       const updateData = {
         name: 'Updated Provider',
@@ -150,7 +150,7 @@ describe('Provider Routes', () => {
       expect(data.data.description).toBe('Updated description')
       
       // 验证 KV 中的数据已更新
-      const providers = await testKV.get('admin_model_providers', { type: 'json' })
+      const providers = await app.kv.get('admin_model_providers', { type: 'json' })
       expect(providers[0].name).toBe('Updated Provider')
     })
     
@@ -195,7 +195,7 @@ describe('Provider Routes', () => {
         }
       ]
       
-      await testKV.put('admin_model_providers', JSON.stringify(providers))
+      await app.kv.put('admin_model_providers', JSON.stringify(providers))
       
       const req = createTestRequest('/api/admin/providers/provider-1', {
         method: 'DELETE'
@@ -208,7 +208,7 @@ describe('Provider Routes', () => {
       expect(data.success).toBe(true)
       
       // 验证 KV 中只剩一个供应商
-      const remainingProviders = await testKV.get('admin_model_providers', { type: 'json' })
+      const remainingProviders = await app.kv.get('admin_model_providers', { type: 'json' })
       expect(remainingProviders).toHaveLength(1)
       expect(remainingProviders[0].id).toBe('provider-2')
     })
@@ -225,8 +225,8 @@ describe('Provider Routes', () => {
         updatedAt: new Date().toISOString()
       }
       
-      await testKV.put('admin_model_providers', JSON.stringify([provider]))
-      await testKV.put('key_pool_provider-1', JSON.stringify({ keys: [] }))
+      await app.kv.put('admin_model_providers', JSON.stringify([provider]))
+      await app.kv.put('key_pool_provider-1', JSON.stringify({ keys: [] }))
       
       const req = createTestRequest('/api/admin/providers/provider-1', {
         method: 'DELETE'
@@ -237,7 +237,7 @@ describe('Provider Routes', () => {
       expect(res.status).toBe(200)
       
       // 验证关联的 key pool 数据也被删除
-      const keyPoolData = await testKV.get('key_pool_provider-1')
+      const keyPoolData = await app.kv.get('key_pool_provider-1')
       expect(keyPoolData).toBeNull()
     })
   })
