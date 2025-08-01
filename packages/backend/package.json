@@ -9,7 +9,10 @@
         "deploy": "wrangler deploy",
         "deploy:preview": "wrangler deploy --env preview",
         "type-check": "tsc --noEmit",
-        "clean": "rimraf dist .wrangler"
+        "clean": "rimraf dist .wrangler",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:ui": "vitest --ui"
     },
     "dependencies": {
         "hono": "^4.0.0"
@@ -17,7 +20,10 @@
     "devDependencies": {
         "@cloudflare/workers-types": "^4.20240512.0",
         "@types/node": "^20.19.9",
+        "@vitest/ui": "^3.2.4",
         "bun-types": "^1.2.19",
-        "typescript": "^5.0.0"
+        "miniflare": "^4.20250712.2",
+        "typescript": "^5.0.0",
+        "vitest": "^3.2.4"
     }
 }

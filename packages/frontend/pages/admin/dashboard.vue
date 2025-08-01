@@ -202,9 +202,16 @@
                     </div>
                     <div class="flex items-center space-x-2 text-sm">
                       <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
                       </svg>
                       <span class="text-gray-600">密钥池: {{ keyPoolStatuses.get(provider.id) || '加载中...' }}</span>
+                    </div>
+                    <!-- 备注描述显示 -->
+                    <div v-if="provider.description" class="flex items-start space-x-2 text-sm">
+                      <svg class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-1.586l-4 4z"></path>
+                      </svg>
+                      <span class="text-gray-600 break-words">{{ provider.description }}</span>
                     </div>
                   </div>
                   <div class="flex space-x-2">

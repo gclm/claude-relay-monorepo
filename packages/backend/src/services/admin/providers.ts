@@ -36,6 +36,7 @@ export class ProviderService {
       throw new HTTPException(400, { message: '供应商名称或端点已存在' })
     }
 
+    const now = new Date().toISOString()
     const newProvider: ModelProvider = {
       id: Date.now().toString(),
       name: request.name,
@@ -43,8 +44,10 @@ export class ProviderService {
       endpoint: request.endpoint,
       model: request.model,
       transformer: request.transformer,
+      description: request.description,  // 可选的描述字段
       status: 'active',
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       keyPoolEnabled: true  // 新供应商默认启用 Key Pool
     }
 
@@ -70,7 +73,10 @@ export class ProviderService {
       name: request.name,
       endpoint: request.endpoint,
       model: request.model,
-      transformer: request.transformer || 'claude-to-openai'
+      transformer: request.transformer || 'claude-to-openai',
+      // 如果提供了 description，则更新；否则保持原值
+      description: request.description !== undefined ? request.description : existingProvider.description,
+      updatedAt: new Date().toISOString()
     }
 
     const success = await this.providerRepo.update(id, updatedProvider)

@@ -86,6 +86,18 @@
         </div>
       </div>
 
+      <!-- 描述 -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          描述
+        </label>
+        <textarea v-model="form.description"
+                  rows="3"
+                  class="block w-full px-3 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200 resize-none"
+                  placeholder="供应商描述信息">
+        </textarea>
+      </div>
+
       <!-- API Key 管理提示 -->
       <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <div class="flex items-start space-x-3">
@@ -147,7 +159,8 @@ const customModel = ref('')
 const form = ref({
   name: props.provider?.name || '',
   endpoint: props.provider?.endpoint || '',
-  model: props.provider?.model || ''
+  model: props.provider?.model || '',
+  description: props.provider?.description || ''
 })
 
 const currentProviderConfig = computed(() => {
@@ -209,7 +222,8 @@ const handleSubmit = () => {
     const editData: EditProviderRequest = {
       name: form.value.name,
       endpoint: form.value.endpoint,
-      model: finalModel
+      model: finalModel,
+      description: form.value.description
     }
     emit('submit', editData)
   } else {
@@ -221,7 +235,8 @@ const handleSubmit = () => {
       type: config.type,
       endpoint: form.value.endpoint,
       model: finalModel,
-      transformer: config.transformer
+      transformer: config.transformer,
+      description: form.value.description
     }
     emit('submit', addData)
   }
@@ -235,7 +250,8 @@ const handleCancel = () => {
     form.value = {
       name: '',
       endpoint: '',
-      model: ''
+      model: '',
+      description: ''
     }
     customModel.value = ''
   }
@@ -247,7 +263,8 @@ const resetForm = () => {
   form.value = {
     name: '',
     endpoint: '',
-    model: ''
+    model: '',
+    description: ''
   }
   customModel.value = ''
 }

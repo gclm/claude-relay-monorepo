@@ -16,6 +16,11 @@
 - `npm run deploy:frontend` / `npm run deploy:backend` - 部署单独的包到 Cloudflare
 - `npm run type-check` - 对后端进行 TypeScript 验证（`tsc --noEmit`）
 
+### 测试命令
+- `npm run test` - 运行所有测试（Vitest）
+- `npm run test:watch` - 监视模式运行测试，代码变化时自动重新运行
+- `npm run test:ui` - 启动 Vitest UI 界面，可视化测试结果和覆盖率
+
 ### 代码质量
 - `npm run lint` - 对所有 TypeScript/Vue 文件运行 ESLint
 - `npm run lint:fix` - 自动修复 ESLint 问题
@@ -31,6 +36,8 @@
 ├── packages/
 │   ├── frontend/          # Nuxt 4 + Vue 3 + Tailwind CSS 前端
 │   └── backend/           # Hono + Cloudflare Workers 后端
+│       ├── src/           # 源代码目录
+│       └── test/          # 测试目录（与 src 同级）
 ├── shared/                # 共享的 TypeScript 类型和常量
 │   ├── types/            # 类型定义
 │   └── constants/        # 常量配置
@@ -42,7 +49,7 @@
 - **后端**: Hono 框架, TypeScript, Bun 运行时，部署到 Cloudflare Workers
 - **共享**: 前后端共享的 TypeScript 类型和 API 常量
 - **存储**: Cloudflare KV 存储
-- **工具**: ESLint, Prettier, TypeScript
+- **工具**: ESLint, Prettier, TypeScript, Vitest (测试框架)
 
 ### 关键架构特性
 
@@ -55,6 +62,7 @@
 - **供应商管理**: 动态配置和管理多个 LLM 供应商（魔搭、智谱 AI、OpenAI 兼容、Google Gemini）
 - **模块化架构**: 按功能域分层组织（admin、proxy、key-pool、transformers）
 - **统一错误处理**: 全局异常捕获和标准化错误响应
+- **完善的测试体系**: Vitest 测试框架，支持单元测试、集成测试和可视化测试界面
 - **开放 CORS 配置**: 支持所有来源访问，适配 Claude Code 客户端
 - **定时任务**: 每 6 小时自动刷新 Claude 账号 Token
 - **本地存储支持**: 开发模式使用本地 KV 存储，生产模式使用 Cloudflare KV
@@ -221,7 +229,8 @@
 'admin_provider_{{id}}': {
   endpoint: string,
   model: string,
-  transformer: string
+  transformer: string,
+  description?: string  // 可选的详细描述字段
   // 注意：API 密钥统一通过 Key Pool 管理，不存储在供应商配置中
 }
 
@@ -299,66 +308,79 @@
 
 #### 后端核心文件
 ```
-packages/backend/src/
-├── index.ts                                   # Workers 入口文件
-├── index.bun.ts                              # Bun 开发模式入口
-├── routes/
-│   ├── index.ts                              # 路由模块入口
-│   ├── admin/                                # 管理中心路由模块
-│   │   ├── index.ts                          # 管理路由入口
-│   │   ├── auth.ts                           # 认证路由
-│   │   ├── dashboard.ts                      # 仪表板路由
-│   │   ├── providers.ts                     # 供应商管理路由
-│   │   ├── models.ts                         # 模型管理路由
-│   │   ├── claude-accounts.ts                # Claude 账号管理路由
-│   │   └── key-pool.ts                       # Key Pool 管理路由
-│   └── proxy/                                # 代理路由模块
-│       ├── index.ts                          # 代理路由入口
-│       └── claude.ts                         # Claude API 代理路由
-├── services/
-│   ├── index.ts                              # 服务模块入口
-│   ├── admin/                                # 管理服务模块
-│   │   ├── index.ts                          # 管理服务入口
-│   │   ├── auth.ts                           # 认证服务
-│   │   ├── dashboard.ts                      # 仪表板服务
-│   │   ├── providers.ts                     # 供应商管理服务
-│   │   ├── models.ts                         # 模型管理服务
-│   │   ├── claude-accounts.ts                # Claude 账号管理服务
-│   │   └── key-pool.ts                       # Key Pool 管理服务
-│   ├── proxy/                                # 代理服务模块
-│   │   ├── index.ts                          # 代理服务入口
-│   │   ├── claude-proxy.ts                   # Claude 智能代理服务
-│   │   └── llm-proxy.ts                      # LLM 代理服务
-│   ├── key-pool/                             # Key Pool 管理模块
-│   │   ├── index.ts                          # Key Pool 入口
-│   │   ├── base-key-pool.ts                  # Key Pool 抽象基类
-│   │   ├── generic-key-pool.ts               # 通用 Key Pool 实现
-│   │   ├── gemini-key-pool.ts                # Gemini Key Pool 实现
-│   │   └── key-pool-manager.ts               # Key Pool 管理器
-│   └── transformers/                         # 转换器模块
-│       ├── index.ts                          # 转换器入口
-│       ├── base-transformer.ts               # 转换器抽象基类
-│       ├── claude-to-openai.ts               # OpenAI 格式转换器
-│       └── claude-to-gemini.ts               # Gemini 格式转换器
-├── middleware/
-│   ├── result-handler.ts                     # 统一错误处理中间件
-│   └── kv-validator.ts                       # KV 绑定验证中间件
-├── constants/                                # 常量定义模块
-│   ├── index.ts                              # 常量入口
-│   ├── transformer.ts                        # 转换器常量
-│   ├── errors/                               # 错误常量
-│   └── proxy/                                # 代理相关常量
-├── types/                                    # 类型定义模块
-│   ├── index.ts                              # 类型入口
-│   ├── env.ts                                # 环境变量和绑定类型
-│   ├── transformer.ts                        # 转换器类型定义
-│   ├── middleware/                           # 中间件类型
-│   └── proxy/                                # 代理相关类型
-└── utils/
-    ├── errors.ts                             # 自定义错误类型
-    ├── response.ts                           # 响应工具函数
-    ├── validators.ts                         # 验证工具函数
-    └── local-kv-storage.ts                  # 本地 KV 存储实现
+packages/backend/
+├── src/                                      # 源代码目录
+│   ├── index.ts                              # Workers 入口文件
+│   ├── index.bun.ts                          # Bun 开发模式入口
+│   ├── routes/
+│   │   ├── index.ts                          # 路由模块入口
+│   │   ├── admin/                            # 管理中心路由模块
+│   │   │   ├── index.ts                      # 管理路由入口
+│   │   │   ├── auth.ts                       # 认证路由
+│   │   │   ├── dashboard.ts                  # 仪表板路由
+│   │   │   ├── providers.ts                 # 供应商管理路由
+│   │   │   ├── models.ts                     # 模型管理路由
+│   │   │   ├── claude-accounts.ts            # Claude 账号管理路由
+│   │   │   └── key-pool.ts                   # Key Pool 管理路由
+│   │   └── proxy/                            # 代理路由模块
+│   │       ├── index.ts                      # 代理路由入口
+│   │       └── claude.ts                     # Claude API 代理路由
+│   ├── services/
+│   │   ├── index.ts                          # 服务模块入口
+│   │   ├── admin/                            # 管理服务模块
+│   │   │   ├── index.ts                      # 管理服务入口
+│   │   │   ├── auth.ts                       # 认证服务
+│   │   │   ├── dashboard.ts                  # 仪表板服务
+│   │   │   ├── providers.ts                 # 供应商管理服务
+│   │   │   ├── models.ts                     # 模型管理服务
+│   │   │   ├── claude-accounts.ts            # Claude 账号管理服务
+│   │   │   └── key-pool.ts                   # Key Pool 管理服务
+│   │   ├── proxy/                            # 代理服务模块
+│   │   │   ├── index.ts                      # 代理服务入口
+│   │   │   ├── claude-proxy.ts               # Claude 智能代理服务
+│   │   │   └── llm-proxy.ts                  # LLM 代理服务
+│   │   ├── key-pool/                         # Key Pool 管理模块
+│   │   │   ├── index.ts                      # Key Pool 入口
+│   │   │   ├── base-key-pool.ts              # Key Pool 抽象基类
+│   │   │   ├── generic-key-pool.ts           # 通用 Key Pool 实现
+│   │   │   ├── gemini-key-pool.ts            # Gemini Key Pool 实现
+│   │   │   └── key-pool-manager.ts           # Key Pool 管理器
+│   │   └── transformers/                     # 转换器模块
+│   │       ├── index.ts                      # 转换器入口
+│   │       ├── base-transformer.ts           # 转换器抽象基类
+│   │       ├── claude-to-openai.ts           # OpenAI 格式转换器
+│   │       └── claude-to-gemini.ts           # Gemini 格式转换器
+│   ├── middleware/
+│   │   ├── result-handler.ts                 # 统一错误处理中间件
+│   │   └── kv-validator.ts                   # KV 绑定验证中间件
+│   ├── constants/                            # 常量定义模块
+│   │   ├── index.ts                          # 常量入口
+│   │   ├── transformer.ts                    # 转换器常量
+│   │   ├── errors/                           # 错误常量
+│   │   └── proxy/                            # 代理相关常量
+│   ├── types/                                # 类型定义模块
+│   │   ├── index.ts                          # 类型入口
+│   │   ├── env.ts                            # 环境变量和绑定类型
+│   │   ├── transformer.ts                    # 转换器类型定义
+│   │   ├── middleware/                       # 中间件类型
+│   │   └── proxy/                            # 代理相关类型
+│   └── utils/
+│       ├── errors.ts                         # 自定义错误类型
+│       ├── response.ts                       # 响应工具函数
+│       ├── validators.ts                     # 验证工具函数
+│       └── local-kv-storage.ts              # 本地 KV 存储实现
+├── test/                                     # 测试目录（与 src 同级）
+│   ├── setup.ts                             # 测试环境配置
+│   ├── helpers.ts                           # 测试辅助函数
+│   └── unit/                                # 单元测试
+│       ├── routes/
+│       │   └── admin/
+│       │       └── providers.test.ts        # 供应商路由测试
+│       └── services/
+│           └── key-pool/
+│               └── generic-key-pool.test.ts # Key Pool 服务测试
+├── vitest.config.ts                         # Vitest 测试配置
+└── tsconfig.json                            # TypeScript 配置
 ```
 
 #### 前端文件结构
@@ -411,6 +433,7 @@ shared/
 - **类型安全**: 全链路 TypeScript 类型约束，共享类型定义
 - **错误优先**: 完善的错误处理和用户友好的错误信息
 - **无状态设计**: 利用 KV 存储实现状态持久化，支持多实例部署
+- **测试优先**: 完善的测试体系，测试与源码分离，支持单元测试和集成测试
 
 #### API 密钥管理最佳实践
 - **统一 Key Pool 管理**: 所有 API 密钥必须通过 Key Pool 系统管理，不在供应商配置中存储
@@ -426,6 +449,13 @@ shared/
 - **智能路由**: 根据选中模型动态路由，避免不必要的转换
 - **并发控制**: 异步处理和适当的超时控制
 - **缓存优化**: 前端静态资源缓存，API 响应缓存策略
+
+#### 测试和质量保证
+- **测试框架**: 使用 Vitest 进行单元测试和集成测试
+- **测试结构**: 测试目录与源码分离，便于管理和维护
+- **可视化测试**: 支持 Vitest UI，提供直观的测试结果和覆盖率报告
+- **持续集成**: 所有测试必须通过才能部署，确保代码质量
+- **测试覆盖**: 核心业务逻辑和 API 端点都有相应的测试用例
 
 ## 管理中心功能
 
@@ -481,7 +511,7 @@ shared/
 1. **选择供应商类型**: OpenAI 兼容或 Google Gemini
 2. **选择预设模板**: 魔搭、智谱 AI、Google Gemini 或自定义
 3. **填写配置信息**: 
-   - 供应商名称和描述
+   - 供应商名称和描述（支持可选的详细描述字段）
    - API 端点 URL
    - 模型名称
    - 转换器类型（自动选择或手动指定）

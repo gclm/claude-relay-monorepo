@@ -9,7 +9,9 @@ export interface ModelProvider {
   endpoint: string
   model: string
   status: 'active' | 'inactive'
-  createdAt: number
+  createdAt: string
+  updatedAt: string
+  description?: string  // 可选的备注描述
   transformer?: 'claude-to-openai' | 'claude-to-gemini'  // 可选，默认 'claude-to-openai'
   keyPoolEnabled?: boolean  // 是否启用 Key Pool（用于向后兼容）
 }
@@ -20,6 +22,7 @@ export interface AddProviderRequest {
   endpoint: string
   model: string
   transformer?: 'claude-to-openai' | 'claude-to-gemini'
+  description?: string  // 可选的备注描述字段
 }
 
 export interface EditProviderRequest {
@@ -27,6 +30,7 @@ export interface EditProviderRequest {
   endpoint: string
   model: string
   transformer?: 'claude-to-openai' | 'claude-to-gemini'
+  description?: string  // 可选的备注描述字段，不做校验
 }
 
 // 预设供应商配置
