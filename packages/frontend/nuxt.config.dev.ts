@@ -1,4 +1,7 @@
+import baseConfig from './nuxt.config'
+
 export default defineNuxtConfig({
+  ...baseConfig,
   // 开发模式特定优化
   compatibilityDate: '2025-07-27',
   

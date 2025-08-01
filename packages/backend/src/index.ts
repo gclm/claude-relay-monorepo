@@ -1,19 +1,17 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { adminRoutes } from './routes/admin'
-import { claudeRoutes } from './routes/claude'
-import { errorHandler } from './middleware/result-handler'
+import { HTTPException } from 'hono/http-exception'
+import { adminRoutes } from './routes/admin/index'
+import { claudeRoutes } from './routes/proxy'
 import { kvValidator } from './middleware/kv-validator'
-import { AdminService } from './services/admin'
+import { ClaudeAccountService } from './services/admin/index'
+import { ERROR_TYPES } from '../../../shared/constants/errors'
 import type { Bindings } from './types/env'
 
 // ==================== 应用初始化 ====================
 const app = new Hono<{ Bindings: Bindings }>()
 
 // ==================== 中间件配置 ====================
-// 全局异常处理中间件 - 放在最前面
-app.use('*', errorHandler())
-
 // KV namespace 验证中间件
 app.use('*', kvValidator())
 
@@ -45,14 +43,32 @@ app.route('/v1', claudeRoutes)
 // ==================== 错误处理 ====================
 // 统一错误处理
 app.onError((err, c) => {
-  console.error('Error:', err)
+  console.error(`Error in ${c.req.method} ${c.req.path}:`, err)
   
+  // 处理 HTTPException
+  if (err instanceof HTTPException) {
+    const status = err.status
+    
+    // 根据状态码映射到错误类型
+    const errorType = getErrorTypeFromStatus(status)
+    
+    return c.json({
+      success: false,
+      error: {
+        type: errorType,
+        message: err.message
+      },
+      timestamp: new Date().toISOString()
+    }, status)
+  }
+  
+  // 处理其他错误
   const isDev = c.env.NODE_ENV === 'development'
   
   return c.json({
     success: false,
     error: {
-      type: 'INTERNAL_ERROR',
+      type: ERROR_TYPES.INTERNAL_ERROR,
       message: isDev ? err.message : 'An unexpected error occurred',
       ...(isDev && { stack: err.stack })
     },
@@ -60,12 +76,24 @@ app.onError((err, c) => {
   }, 500)
 })
 
+// 根据 HTTP 状态码获取错误类型
+function getErrorTypeFromStatus(status: number): string {
+  const statusToErrorType: Record<number, string> = {
+    400: ERROR_TYPES.INVALID_REQUEST,
+    401: ERROR_TYPES.UNAUTHORIZED,
+    404: ERROR_TYPES.RESOURCE_NOT_FOUND,
+    500: ERROR_TYPES.INTERNAL_ERROR
+  }
+  
+  return statusToErrorType[status] || ERROR_TYPES.INTERNAL_ERROR
+}
+
 // 404 处理
 app.notFound((c) => {
   return c.json({
     success: false,
     error: {
-      type: 'RESOURCE_NOT_FOUND',
+      type: ERROR_TYPES.RESOURCE_NOT_FOUND,
       message: 'The requested endpoint does not exist'
     },
     timestamp: new Date().toISOString()
@@ -81,10 +109,10 @@ export default {
     console.log('定时任务开始执行 - Claude 账号 Token 自动刷新')
     
     try {
-      const adminService = new AdminService(env.CLAUDE_RELAY_ADMIN_KV)
+      const claudeAccountService = new ClaudeAccountService(env.CLAUDE_RELAY_ADMIN_KV)
       
       // 获取所有 Claude 账号
-      const accounts = await adminService.getClaudeAccounts()
+      const accounts = await claudeAccountService.getClaudeAccounts()
       console.log(`发现 ${accounts.length} 个 Claude 账号`)
       
       let successCount = 0
@@ -94,7 +122,7 @@ export default {
       for (const account of accounts) {
         try {
           console.log(`正在刷新账号: ${account.name} (${account.id})`)
-          await adminService.refreshClaudeAccountToken(account.id)
+          await claudeAccountService.refreshClaudeAccountToken(account.id)
           successCount++
           console.log(`✅ 成功刷新账号: ${account.name}`)
         } catch (error) {

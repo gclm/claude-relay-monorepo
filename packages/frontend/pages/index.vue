@@ -97,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AdminAuthRequest } from '../../../shared/types/admin'
+import type { AdminAuthRequest } from '../../../shared/types/admin/auth'
 import { API_ENDPOINTS } from '../../../shared/constants/endpoints'
 
 useHead({

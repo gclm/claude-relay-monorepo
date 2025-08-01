@@ -16,13 +16,13 @@ import type {
   StreamChunk,
   ContentType,
   StreamState
-} from '../types/transformer'
+} from '../../types/transformer'
 
 import {
   FINISH_REASON_MAPPING,
   MESSAGE_ID_PREFIX,
   DEFAULT_STOP_REASON
-} from '../constants/transformer'
+} from '../../constants/transformer'
 
 export class ClaudeToOpenAITransformer {
   name = "ClaudeToOpenAI"

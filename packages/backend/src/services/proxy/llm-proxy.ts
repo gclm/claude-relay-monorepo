@@ -3,36 +3,26 @@
  * 支持多种LLM供应商的统一API转换
  */
 
-import { ClaudeToOpenAITransformer } from './claude-to-openai-transformer'
-import { ClaudeToGeminiTransformer } from './claude-to-gemini-transformer'
+import { ClaudeToOpenAITransformer } from '../transformers/claude-to-openai'
+import { ClaudeToGeminiTransformer } from '../transformers/claude-to-gemini'
+import { KeyPoolManager } from '../key-pool'
+import { ApiKey } from '../../../../../shared/types/key-pool'
+import { ModelProvider } from '../../../../../shared/types/admin/providers'
 
-interface LLMProvider {
-  name: string
-  apiUrl: string
-  apiKey: string
-  model: string
-  transformer: any // 对应的转换器实例
-}
-
-interface ClaudeRequest {
-  model?: string
-  messages: any[]
-  max_tokens?: number
-  temperature?: number
-  stream?: boolean
-  system?: string | any[]
-}
+import { LLMProvider, ClaudeRequest } from '../../types/proxy'
 
 export class LLMProxyService {
   private providers: Map<string, LLMProvider> = new Map()
   private transformers: Map<string, any> = new Map()
+  private keyPoolManager: KeyPoolManager
 
-  constructor() {
+  constructor(kv: KVNamespace) {
     // 初始化转换器 - 使用自定义的Claude到OpenAI转换器
     this.transformers.set('claude-to-openai', new ClaudeToOpenAITransformer())
     // 初始化Claude到Gemini转换器
     this.transformers.set('claude-to-gemini', new ClaudeToGeminiTransformer())
-    // 移除硬编码的供应商注册，改为动态配置
+    // 初始化 Key Pool 管理器
+    this.keyPoolManager = new KeyPoolManager(kv)
   }
 
   /**
@@ -45,14 +35,18 @@ export class LLMProxyService {
   /**
    * 从ModelProvider配置动态注册供应商
    */
-  registerProviderFromConfig(provider: any) {
+  async registerProviderFromConfig(provider: ModelProvider, initialApiKey?: string) {
     const transformer = this.getTransformerForProvider(provider)
+    
+    // 初始化 Key Pool
+    await this.keyPoolManager.initializeFromProvider(provider, initialApiKey)
+    
     this.registerProvider({
       name: provider.id,
       apiUrl: provider.endpoint,
-      apiKey: provider.apiKey,
       model: provider.model,
-      transformer: transformer
+      transformer: transformer,
+      type: provider.type
     })
   }
 
@@ -68,15 +62,18 @@ export class LLMProxyService {
   /**
    * 处理Claude请求并转发给指定提供商
    */
-  async handleRequest(claudeRequest: ClaudeRequest, providerName: string, apiKey?: string): Promise<Response> {
+  async handleRequest(claudeRequest: ClaudeRequest, providerName: string): Promise<Response> {
     const provider = this.providers.get(providerName)
     if (!provider) {
       throw new Error(`Provider ${providerName} not found`)
     }
 
-    const effectiveApiKey = apiKey || provider.apiKey
-    if (!effectiveApiKey) {
-      throw new Error(`API key required for provider ${providerName}`)
+    // 从 Key Pool 获取可用的 API Key
+    const pool = await this.keyPoolManager.getOrCreatePool(providerName, provider.type)
+    const apiKeyInfo = await pool.getNextKey()
+    
+    if (!apiKeyInfo) {
+      throw new Error(`No available API keys for provider ${providerName}`)
     }
 
     try {
@@ -84,19 +81,26 @@ export class LLMProxyService {
       const transformedRequest = this.transformRequest(claudeRequest, provider)
       
       // 2. 准备请求配置
-      const { url, headers } = this.prepareRequestConfig(provider, effectiveApiKey, claudeRequest.stream)
+      const { url, headers } = this.prepareRequestConfig(provider, apiKeyInfo.key, claudeRequest.stream)
 
-      console.log(`🚀 转发到${providerName}: ${claudeRequest.stream ? '🌊' : '📄'}`)
+      console.log(`🚀 转发到${providerName}: ${claudeRequest.stream ? '🌊' : '📄'} [Key: ${apiKeyInfo.id}]`)
       console.log('🔍 转换后的请求:', JSON.stringify(transformedRequest, null, 2))
 
       // 3. 发送请求
       const response = await this.sendRequest(url, headers, transformedRequest, providerName)
 
-      // 4. 处理响应
+      // 4. 更新成功统计
+      await pool.updateKeyStats(apiKeyInfo.id, true)
+
+      // 5. 处理响应
       return await this.processResponse(response, claudeRequest.stream, provider)
 
     } catch (error) {
       console.error(`${providerName}代理失败:`, error)
+      
+      // 处理错误并更新 Key 状态
+      await this.keyPoolManager.handleRequestError(providerName, apiKeyInfo.id, error)
+      
       throw error
     }
   }
@@ -237,5 +241,12 @@ export class LLMProxyService {
    */
   getTransformers(): string[] {
     return Array.from(this.transformers.keys())
+  }
+
+  /**
+   * 获取 Key Pool 管理器
+   */
+  getKeyPoolManager(): KeyPoolManager {
+    return this.keyPoolManager
   }
 }

@@ -60,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AddProviderRequest } from '../../../../shared/types/admin'
+import type { AddProviderRequest } from '../../../../shared/types/admin/providers'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
 import ProviderForm from '~/components/ProviderForm.vue'
 

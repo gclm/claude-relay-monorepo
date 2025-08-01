@@ -4,8 +4,8 @@
  */
 
 import { Hono } from 'hono'
-import { ClaudeProxyService } from '../services/claude'
-import type { Bindings } from '../types/env'
+import { ClaudeProxyService } from '../../services/proxy/claude-proxy'
+import type { Bindings } from '../../types/env'
 
 const claudeRoutes = new Hono<{ Bindings: Bindings }>()
 

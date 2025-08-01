@@ -127,8 +127,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import type { ModelProvider, AddProviderRequest, EditProviderRequest } from '../../../shared/types/admin'
-import { PROVIDER_CONFIGS } from '../../../shared/constants/admin'
+import type { ModelProvider, AddProviderRequest, EditProviderRequest } from '../../../shared/types/admin/providers'
+import { PROVIDER_CONFIGS } from '../../../shared/constants/admin/providers'
 
 interface Props {
   provider?: ModelProvider // 编辑时传入

@@ -1,17 +1,7 @@
 /**
- * 管理中心常量定义
+ * 预设供应商配置常量
  */
 
-// API 端点
-export const ADMIN_API_ENDPOINTS = {
-  AUTH: '/api/admin/auth',
-  DASHBOARD: '/api/admin/dashboard',
-  PROVIDERS: '/api/admin/providers',
-  MODELS: '/api/admin/models',
-  SELECT_MODEL: '/api/admin/select-model'
-} as const
-
-// 预设供应商配置
 export const PROVIDER_CONFIGS = {
   // 预定义供应商 - 魔搭
   modelscope: {
@@ -49,11 +39,4 @@ export const PROVIDER_CONFIGS = {
     transformer: 'claude-to-openai' as const,
     isPreset: false
   }
-} as const
-
-// 存储键
-export const ADMIN_STORAGE_KEYS = {
-  MODEL_PROVIDERS: 'admin_model_providers',
-  SELECTED_MODEL: 'admin_selected_model',
-  CLAUDE_ACCOUNTS: 'admin_claude_accounts'
 } as const

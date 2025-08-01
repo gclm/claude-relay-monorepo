@@ -3,25 +3,19 @@
  * 支持官方Claude API和魔搭Qwen模型的智能路由
  */
 
-import { ModelProvider, SelectedModel } from '../../../../shared/types/admin'
-import { ADMIN_STORAGE_KEYS } from '../../../../shared/constants/admin'
-import { AuthError } from '../utils/errors'
+import { ModelProvider } from '../../../../../shared/types/admin/providers'
+import { SelectedModel } from '../../../../../shared/types/admin/models'
+import { ADMIN_STORAGE_KEYS, getProviderStorageKey } from '../../../../../shared/constants/admin/storage'
+import { HTTPException } from 'hono/http-exception'
 import { LLMProxyService } from './llm-proxy'
 
-interface ClaudeToken {
-  access_token: string
-  refresh_token: string
-  expires_at: number
-  token_type: string
-  scope: string
-  obtained_at: number
-}
+import { ClaudeToken } from '../../types/proxy'
 
 export class ClaudeProxyService {
   private llmProxy: LLMProxyService
 
   constructor(private kv: KVNamespace) {
-    this.llmProxy = new LLMProxyService()
+    this.llmProxy = new LLMProxyService(kv)
   }
 
   /**
@@ -65,7 +59,7 @@ export class ClaudeProxyService {
       // 获取有效的Claude token
       const token = await this.getValidClaudeToken()
       if (!token) {
-        throw new AuthError('无法获取有效的Claude访问令牌，请设置Claude认证')
+        throw new HTTPException(401, { message: '无法获取有效的Claude访问令牌，请设置Claude认证' })
       }
 
       // 获取请求体并转发到 Claude API
@@ -137,10 +131,10 @@ export class ClaudeProxyService {
       console.log(`🚀 转发到${provider.name}: ${claudeRequest.stream ? '🌊' : '📄'}`)
 
       // 动态注册供应商到 llmProxy
-      this.llmProxy.registerProviderFromConfig(provider)
+      await this.llmProxy.registerProviderFromConfig(provider)
       
       // 使用provider.id作为providerType，确保与注册时一致
-      return await this.llmProxy.handleRequest(claudeRequest, provider.id, provider.apiKey)
+      return await this.llmProxy.handleRequest(claudeRequest, provider.id)
 
     } catch (error) {
       console.error(`${provider.name} API转发失败:`, error)

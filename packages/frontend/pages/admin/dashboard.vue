@@ -457,7 +457,9 @@
 </template>
 
 <script setup lang="ts">
-import type { DashboardData, ModelProvider, EditProviderRequest, ClaudeAccount, AddClaudeAccountRequest } from '../../../../shared/types/admin'
+import type { DashboardData } from '../../../../shared/types/admin/dashboard'
+import type { ModelProvider, EditProviderRequest } from '../../../../shared/types/admin/providers'
+import type { ClaudeAccount, AddClaudeAccountRequest } from '../../../../shared/types/admin/claude-accounts'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
 
 useHead({

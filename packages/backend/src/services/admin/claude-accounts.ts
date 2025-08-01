@@ -1,183 +1,14 @@
 /**
- * 管理服务 - 简化版
+ * Claude 账号管理服务
  */
 
-import { ModelProvider, SelectedModel, DashboardData, AddProviderRequest, EditProviderRequest, ClaudeAccount, AddClaudeAccountRequest, ClaudeAccountOAuthRequest } from '../../../../shared/types/admin'
-import { ADMIN_STORAGE_KEYS } from '../../../../shared/constants/admin'
-import { StoredTokenInfo, PKCEParams, OAuthTokenData } from '../../../../shared/types/auth'
-import { AuthError, ValidationError } from '../utils/errors'
-import { OAUTH_CONFIG } from '../../../../shared/constants/oauth'
+import { ClaudeAccount, AddClaudeAccountRequest, ClaudeAccountOAuthRequest } from '../../../../../shared/types/admin/claude-accounts'
+import { StoredTokenInfo, PKCEParams, OAuthTokenData } from '../../../../../shared/types/auth'
+import { HTTPException } from 'hono/http-exception'
+import { OAUTH_CONFIG } from '../../../../../shared/constants/oauth'
 
-export class AdminService {
+export class ClaudeAccountService {
   constructor(private adminKv: KVNamespace) {}
-
-  // 验证管理员凭据
-  async verifyAdmin(username: string, password: string, env: any): Promise<boolean> {
-    const adminUsername = env.ADMIN_USERNAME || 'admin'
-    const adminPassword = env.ADMIN_PASSWORD || 'password123'
-    
-    return username === adminUsername && password === adminPassword
-  }
-
-  // 获取仪表板数据
-  async getDashboardData(): Promise<DashboardData> {
-    // 获取供应商数量
-    const providersData = await this.adminKv.get(ADMIN_STORAGE_KEYS.MODEL_PROVIDERS)
-    const providers: ModelProvider[] = providersData ? JSON.parse(providersData) : []
-    const providerCount = providers.length
-
-    // 获取当前选中的模型
-    const selectedModelData = await this.adminKv.get(ADMIN_STORAGE_KEYS.SELECTED_MODEL)
-    const currentModel: SelectedModel = selectedModelData 
-      ? JSON.parse(selectedModelData)
-      : { id: 'official', name: '官方 Claude', type: 'official' }
-
-    // 获取 Claude 账号统计
-    const claudeAccounts = await this.getClaudeAccounts()
-    const claudeAccountsCount = claudeAccounts.length
-    const activeClaudeAccounts = claudeAccounts.filter(account => account.status === 'active').length
-
-    return {
-      hasClaudeToken: activeClaudeAccounts > 0, // 有活跃账号即为有 token
-      tokenExpired: false, // 简化：假设活跃账号的 token 都有效
-      providerCount,
-      activeConnections: 0, // 简化版暂时为 0
-      currentModel,
-      claudeAccountsCount,
-      activeClaudeAccounts
-    }
-  }
-
-  // 获取所有模型供应商
-  async getProviders(): Promise<ModelProvider[]> {
-    const data = await this.adminKv.get(ADMIN_STORAGE_KEYS.MODEL_PROVIDERS)
-    return data ? JSON.parse(data) : []
-  }
-
-  // 添加模型供应商
-  async addProvider(request: AddProviderRequest): Promise<ModelProvider> {
-    const providers = await this.getProviders()
-    
-    // 检查是否已存在
-    const exists = providers.some(p => p.name === request.name || p.endpoint === request.endpoint)
-    if (exists) {
-      throw new ValidationError('供应商名称或端点已存在')
-    }
-
-    const newProvider: ModelProvider = {
-      id: Date.now().toString(),
-      name: request.name,
-      type: request.type,
-      endpoint: request.endpoint,
-      apiKey: request.apiKey,
-      model: request.model,
-      transformer: request.transformer,
-      status: 'active',
-      createdAt: Date.now()
-    }
-
-    providers.push(newProvider)
-    await this.adminKv.put(ADMIN_STORAGE_KEYS.MODEL_PROVIDERS, JSON.stringify(providers))
-    
-    return newProvider
-  }
-
-  // 编辑模型供应商
-  async editProvider(id: string, request: EditProviderRequest): Promise<ModelProvider> {
-    const providers = await this.getProviders()
-    const providerIndex = providers.findIndex(p => p.id === id)
-    
-    if (providerIndex === -1) {
-      throw new ValidationError('供应商不存在')
-    }
-
-    // 更新供应商信息，保持原有的 id、type、status 和 createdAt
-    const existingProvider = providers[providerIndex]
-    const updatedProvider: ModelProvider = {
-      ...existingProvider,
-      name: request.name,
-      endpoint: request.endpoint,
-      apiKey: request.apiKey,
-      model: request.model,
-      transformer: request.transformer || 'claude-to-openai'
-    }
-
-    providers[providerIndex] = updatedProvider
-    await this.adminKv.put(ADMIN_STORAGE_KEYS.MODEL_PROVIDERS, JSON.stringify(providers))
-    
-    return updatedProvider
-  }
-
-  // 删除模型供应商
-  async deleteProvider(id: string): Promise<void> {
-    const providers = await this.getProviders()
-    const updatedProviders = providers.filter(p => p.id !== id)
-    
-    if (updatedProviders.length === providers.length) {
-      throw new ValidationError('供应商不存在')
-    }
-
-    await this.adminKv.put(ADMIN_STORAGE_KEYS.MODEL_PROVIDERS, JSON.stringify(updatedProviders))
-    
-    // 如果删除的是当前选中的供应商，重置为官方模型
-    const selectedModel = await this.getSelectedModel()
-    if (selectedModel.type === 'provider' && selectedModel.providerId === id) {
-      await this.selectModel('official', 'official')
-    }
-  }
-
-  // 获取可用模型列表
-  async getAvailableModels(): Promise<Array<{ id: string; name: string; type: 'official' | 'provider'; providerId?: string }>> {
-    const models: Array<{ id: string; name: string; type: 'official' | 'provider'; providerId?: string }> = [
-      { id: 'official', name: '官方 Claude', type: 'official' }
-    ]
-
-    const providers = await this.getProviders()
-    for (const provider of providers.filter(p => p.status === 'active')) {
-      models.push({
-        id: provider.id,
-        name: provider.name,
-        type: 'provider',
-        providerId: provider.id
-      })
-    }
-
-    return models
-  }
-
-  // 获取当前选中的模型
-  async getSelectedModel(): Promise<SelectedModel> {
-    const data = await this.adminKv.get(ADMIN_STORAGE_KEYS.SELECTED_MODEL)
-    return data 
-      ? JSON.parse(data)
-      : { id: 'official', name: '官方 Claude', type: 'official' }
-  }
-
-  // 选择模型
-  async selectModel(modelId: string, type: 'official' | 'provider', providerId?: string): Promise<SelectedModel> {
-    let modelName = '官方 Claude'
-    
-    if (type === 'provider' && providerId) {
-      const providers = await this.getProviders()
-      const provider = providers.find(p => p.id === providerId)
-      if (!provider) {
-        throw new ValidationError('供应商不存在')
-      }
-      modelName = provider.name
-    }
-
-    const selectedModel: SelectedModel = {
-      id: modelId,
-      name: modelName,
-      type,
-      providerId
-    }
-
-    await this.adminKv.put(ADMIN_STORAGE_KEYS.SELECTED_MODEL, JSON.stringify(selectedModel))
-    return selectedModel
-  }
-
-  // ==================== Claude 账号管理方法 ====================
 
   // 获取所有 Claude 账号
   async getClaudeAccounts(): Promise<ClaudeAccount[]> {
@@ -238,7 +69,7 @@ export class AdminService {
     const accounts = await this.getClaudeAccounts()
     const exists = accounts.some(account => account.name === request.name)
     if (exists) {
-      throw new ValidationError('账号名称已存在')
+      throw new HTTPException(400, { message: '账号名称已存在' })
     }
 
     const newAccount: ClaudeAccount = {
@@ -266,7 +97,7 @@ export class AdminService {
     // 检查账号是否存在
     const accountData = await this.adminKv.get(`claude_account:${id}`)
     if (!accountData) {
-      throw new ValidationError('账号不存在')
+      throw new HTTPException(400, { message: '账号不存在' })
     }
 
     // 删除账号数据
@@ -301,7 +132,7 @@ export class AdminService {
     // 检查账号是否存在
     const accountData = await this.adminKv.get(`claude_account:${accountId}`)
     if (!accountData) {
-      throw new ValidationError('账号不存在')
+      throw new HTTPException(400, { message: '账号不存在' })
     }
 
     // 生成 PKCE 参数
@@ -339,12 +170,12 @@ export class AdminService {
     // 验证 PKCE 参数
     const pkceData = await this.adminKv.get(`claude_oauth_pkce:${request.pkce.state}`)
     if (!pkceData) {
-      throw new AuthError('PKCE 参数已过期或无效')
+      throw new HTTPException(401, { message: 'PKCE 参数已过期或无效' })
     }
 
     const storedPkce = JSON.parse(pkceData)
     if (storedPkce.accountId !== request.accountId) {
-      throw new AuthError('账号ID与PKCE参数不匹配')
+      throw new HTTPException(401, { message: '账号ID与PKCE参数不匹配' })
     }
 
     // 清理授权码
@@ -370,7 +201,7 @@ export class AdminService {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new AuthError(`令牌交换失败: ${response.status} ${errorText}`)
+      throw new HTTPException(401, { message: `令牌交换失败: ${response.status} ${errorText}` })
     }
 
     const tokenData: OAuthTokenData = await response.json()
@@ -396,12 +227,12 @@ export class AdminService {
   async refreshClaudeAccountToken(accountId: string): Promise<void> {
     const tokenData = await this.adminKv.get(`claude_account_token:${accountId}`)
     if (!tokenData) {
-      throw new AuthError('未找到账号的令牌信息')
+      throw new HTTPException(401, { message: '未找到账号的令牌信息' })
     }
 
     const currentToken: StoredTokenInfo = JSON.parse(tokenData)
     if (!currentToken.refresh_token) {
-      throw new AuthError('未找到 refresh_token')
+      throw new HTTPException(401, { message: '未找到 refresh_token' })
     }
 
     const response = await fetch(OAUTH_CONFIG.TOKEN_URL, {
@@ -420,7 +251,7 @@ export class AdminService {
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new AuthError(`刷新令牌失败: ${response.status} ${errorText}`)
+      throw new HTTPException(401, { message: `刷新令牌失败: ${response.status} ${errorText}` })
     }
 
     const newTokenData: OAuthTokenData = await response.json()
@@ -471,7 +302,7 @@ export class AdminService {
   private generateRandomBase64UrlString(length: number): string {
     const array = new Uint8Array(length)
     crypto.getRandomValues(array)
-    return this.arrayBufferToBase64Url(array.buffer)
+    return this.arrayBufferToBase64Url(array.buffer as ArrayBuffer)
   }
 
   // 将 ArrayBuffer 转换为 base64url 编码
