@@ -1,8 +1,8 @@
-根据 GitHub issue 或需求描述自动实现功能。
+根据 GitHub issue 实现功能。
 
 ## 使用方法
 ```
-/implement-issue [GitHub issue URL 或功能描述]
+/issue-impl [GitHub issue URL]
 ```
 
 ## 工作流程

@@ -10,10 +10,11 @@ tools: Read, Write, Edit, MultiEdit, Grep, Glob, LS, Bash
 
 ## 技术栈
 - **框架**: Hono (Cloudflare Workers)
-- **运行时**: Cloudflare Workers
-- **存储**: Cloudflare KV
+- **运行时**: Cloudflare Workers / Bun (开发模式)
+- **存储**: Cloudflare KV / 本地 KV 存储 (开发模式)
 - **语言**: TypeScript (严格模式)
 - **部署**: Wrangler
+- **定时任务**: Cloudflare Cron Triggers
 
 ## 核心原则
 
@@ -25,11 +26,20 @@ tools: Read, Write, Edit, MultiEdit, Grep, Glob, LS, Bash
 ### 架构分层
 ```
 src/
-├── routes/      # 路由定义，保持简洁
-├── services/    # 业务逻辑（仅在复杂时使用）
-├── middleware/  # 中间件（已有的直接用）
-├── types/       # 类型定义
-└── utils/       # 工具函数
+├── index.ts           # Workers 入口文件
+├── index.bun.ts       # Bun 开发模式入口
+├── routes/            # 路由定义，保持简洁
+│   ├── claude.ts      # Claude API 代理路由
+│   └── admin.ts       # 管理中心 API 路由
+├── services/          # 业务逻辑层
+│   ├── claude.ts      # 智能代理服务
+│   ├── llm-proxy.ts   # LLM 代理服务
+│   ├── admin.ts       # 管理服务
+│   └── *-transformer.ts # 格式转换器
+├── middleware/        # 中间件（已有的直接用）
+├── types/             # 类型定义
+└── utils/             # 工具函数
+    └── local-kv-storage.ts # 本地 KV 存储
 ```
 
 ## 实现指南
@@ -117,22 +127,63 @@ router.post('/items', async (c) => {
 })
 ```
 
-### 代理请求
+### 服务层模式
 ```typescript
-// 转发请求到第三方
-const proxyToProvider = async (request: Request, provider: Provider) => {
-  const url = new URL(provider.endpoint)
+// 复杂业务逻辑抽取到服务层
+export class AdminService {
+  constructor(private kv: KVNamespace) {}
   
-  const proxyRequest = new Request(url, {
-    method: request.method,
-    headers: {
-      'Authorization': `Bearer ${provider.apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: request.body
-  })
+  async getProviders(): Promise<ModelProvider[]> {
+    const data = await this.kv.get('admin_model_providers')
+    return data ? JSON.parse(data) : []
+  }
   
-  return fetch(proxyRequest)
+  async selectModel(modelId: string) {
+    // 业务逻辑处理
+    const model = await this.findModel(modelId)
+    if (!model) throw new Error('Model not found')
+    
+    await this.kv.put('admin_selected_model', JSON.stringify(model))
+    return model
+  }
+}
+```
+
+### 格式转换器模式
+```typescript
+// 实现转换器接口
+export class ClaudeToOpenAITransformer implements LLMTransformer {
+  transformRequest(claudeRequest: ClaudeRequest): OpenAIRequest {
+    // Claude 格式 → OpenAI 格式
+  }
+  
+  transformResponse(openaiResponse: OpenAIResponse): ClaudeResponse {
+    // OpenAI 格式 → Claude 格式
+  }
+}
+```
+
+### 定时任务
+```typescript
+// wrangler.toml 中配置 cron
+export default {
+  async scheduled(event, env, ctx) {
+    // 刷新 Token 逻辑
+    const adminService = new AdminService(env.CLAUDE_RELAY_ADMIN_KV)
+    await adminService.refreshAllTokens()
+  }
+}
+```
+
+### 开发模式支持
+```typescript
+// index.bun.ts - Bun 开发模式入口
+import { LocalKVStorage } from './utils/local-kv-storage'
+
+const kv = new LocalKVStorage('./kv-data')
+const env = {
+  CLAUDE_RELAY_ADMIN_KV: kv,
+  NODE_ENV: 'development'
 }
 ```
 
@@ -142,11 +193,22 @@ const proxyToProvider = async (request: Request, provider: Provider) => {
 3. 返回清晰的错误信息
 4. 合理使用 KV 存储
 5. 避免创建不必要的抽象
+6. 开发时优先使用 Bun 模式（更快）
+7. 部署前用 Wrangler 模式测试
+
+## 开发命令
+- `npm run dev:backend` - Bun 开发模式（推荐，热重载）
+- `npm run dev:backend:wrangler` - Wrangler 模式（生产环境模拟）
+- `npm run type-check` - TypeScript 类型检查
+- `npm run build:backend` - 构建后端
+- `npm run deploy:backend` - 部署到 Cloudflare Workers
 
 ## 任务执行
 当你收到任务时：
 1. 仔细阅读设计方案和接口定义
 2. 分析需要修改或创建的文件
-3. 实现核心 API 功能
-4. 添加必要的验证和错误处理
-5. 使用 wrangler dev 测试功能
+3. 根据复杂度决定是否需要服务层
+4. 实现核心 API 功能
+5. 添加必要的验证和错误处理
+6. 使用 Bun 开发模式快速测试
+7. 部署前用 Wrangler 模式验证
