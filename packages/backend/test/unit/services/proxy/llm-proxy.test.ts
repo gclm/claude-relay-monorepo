@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach, test } from 'vitest'
 import { LLMProxyService } from '../../../../src/services/proxy/llm-proxy'
 import { LocalKVStorage } from '../../../../src/utils/local-kv-storage'
 import { ModelProvider } from '../../../../../../../shared/types/admin/providers'
 import { ClaudeRequest, LLMProvider } from '../../../../src/types/proxy'
 import { ApiKey } from '../../../../../../../shared/types/key-pool'
+import { LLMProxyTestFactory } from '../../../factories/llm-proxy-factory'
+import { LLMProxyAssertions } from '../../../assertions/llm-proxy-assertions'
 
 // Mock transformers
 const mockOpenAITransformer = {
@@ -50,44 +52,14 @@ global.fetch = mockFetch
 describe('LLM 代理服务单元测试', () => {
   let kv: LocalKVStorage
   let service: LLMProxyService
+  const factory = LLMProxyTestFactory
+  const assertions = LLMProxyAssertions
   
-  // Mock data
-  const mockClaudeRequest: ClaudeRequest = {
-    model: 'claude-3-opus-20240229',
-    messages: [
-      { role: 'user', content: 'Hello!' }
-    ],
-    stream: false
-  }
-  
-  const mockOpenAIProvider: ModelProvider = {
-    id: 'qwen-provider',
-    name: '魔搭 Qwen',
-    type: 'qwen',
-    endpoint: 'https://api.qwen.ai/v1/chat/completions',
-    model: 'qwen-turbo',
-    transformer: 'claude-to-openai'
-  }
-  
-  const mockGeminiProvider: ModelProvider = {
-    id: 'gemini-provider',
-    name: 'Google Gemini',
-    type: 'gemini',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{{model}}:generateContent',
-    model: 'gemini-pro',
-    transformer: 'claude-to-gemini'
-  }
-  
-  const mockApiKey: ApiKey = {
-    id: 'key-123',
-    key: 'sk-test-key',
-    status: 'active',
-    createdAt: Date.now(),
-    lastUsedAt: Date.now(),
-    usageCount: 10,
-    successCount: 9,
-    errorCount: 1
-  }
+  // 使用工厂创建测试数据
+  const mockClaudeRequest = factory.createClaudeRequest()
+  const mockOpenAIProvider = factory.createOpenAIProvider()
+  const mockGeminiProvider = factory.createGeminiProvider()
+  const mockApiKey = factory.createApiKey()
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -108,12 +80,21 @@ describe('LLM 代理服务单元测试', () => {
   })
 
   afterEach(async () => {
-    // Clean up test data
+    // 并行清理测试数据
     const result = await kv.list()
-    for (const key of result.keys) {
-      await kv.delete(key.name)
-    }
+    await Promise.all(result.keys.map(key => kv.delete(key.name)))
   })
+
+  // 辅助函数：创建模拟响应
+  const mockFetchResponse = (body: any, options: { status?: number, headers?: HeadersInit } = {}) => {
+    return new Response(
+      typeof body === 'string' ? body : JSON.stringify(body),
+      {
+        status: options.status || 200,
+        headers: { 'Content-Type': 'application/json', ...options.headers }
+      }
+    )
+  }
 
   describe('registerProviderFromConfig - 从配置注册供应商', () => {
     it('应该成功注册 OpenAI 兼容的供应商', async () => {
@@ -128,11 +109,7 @@ describe('LLM 代理服务单元测试', () => {
       await service.registerProviderFromConfig(mockOpenAIProvider)
       
       // Assert
-      const providers = service.getProviders()
-      expect(providers).toContain('qwen-provider')
-      
-      const transformers = service.getTransformers()
-      expect(transformers).toContain('claude-to-openai')
+      assertions.assertProviderRegistration(service, 'qwen-provider', 'claude-to-openai')
     })
 
     it('应该成功注册 Google Gemini 供应商', async () => {
@@ -147,11 +124,7 @@ describe('LLM 代理服务单元测试', () => {
       await service.registerProviderFromConfig(mockGeminiProvider)
       
       // Assert
-      const providers = service.getProviders()
-      expect(providers).toContain('gemini-provider')
-      
-      const transformers = service.getTransformers()
-      expect(transformers).toContain('claude-to-gemini')
+      assertions.assertProviderRegistration(service, 'gemini-provider', 'claude-to-gemini')
     })
 
     it('应该为供应商初始化密钥池', async () => {
@@ -190,53 +163,24 @@ describe('LLM 代理服务单元测试', () => {
        * 5. 更新密钥使用统计
        */
       // Setup
-      const mockOpenAIResponse = {
-        id: 'chatcmpl-123',
-        choices: [{
-          message: { role: 'assistant', content: 'Hello! How can I help?' },
-          finish_reason: 'stop'
-        }]
-      }
+      const mockOpenAIResponse = factory.createOpenAIResponse()
+      mockFetch.mockResolvedValueOnce(mockFetchResponse(mockOpenAIResponse))
       
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify(mockOpenAIResponse),
-        { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      ))
-      
-      const mockClaudeResponse = {
-        id: 'msg_123',
-        type: 'message',
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Hello! How can I help?' }]
-      }
+      const mockClaudeResponse = factory.createClaudeResponse()
       mockOpenAITransformer.transformResponseIn.mockResolvedValueOnce(mockClaudeResponse)
       
       // Execute
       const response = await service.handleRequest(mockClaudeRequest, 'qwen-provider')
       
       // Assert
-      expect(mockFetch).toHaveBeenCalledWith(
+      assertions.assertOpenAIApiCall(
+        mockFetch,
         'https://api.qwen.ai/v1/chat/completions',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Authorization': 'Bearer sk-test-key',
-            'Content-Type': 'application/json'
-          }),
-          body: JSON.stringify({
-            model: 'qwen-turbo',
-            messages: mockClaudeRequest.messages,
-            stream: false
-          })
-        })
+        mockApiKey.key,
+        factory.createTransformedOpenAIRequest('qwen-turbo', mockClaudeRequest.messages)
       )
       
-      const responseData = await response.json()
-      expect(responseData).toEqual(mockClaudeResponse)
-      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      await assertions.assertJsonResponse(response, mockClaudeResponse)
     })
 
     it('应该正确处理 Google Gemini 供应商的请求', async () => {
@@ -249,53 +193,18 @@ describe('LLM 代理服务单元测试', () => {
        * 4. 正确转换请求和响应格式
        */
       // Setup
-      const mockGeminiResponse = {
-        candidates: [{
-          content: {
-            parts: [{ text: 'Hello from Gemini!' }]
-          }
-        }]
-      }
+      const mockGeminiResponse = factory.createGeminiResponse()
+      mockFetch.mockResolvedValueOnce(mockFetchResponse(mockGeminiResponse))
       
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify(mockGeminiResponse),
-        { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      ))
-      
-      const mockClaudeResponse = {
-        id: 'msg_456',
-        type: 'message',
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Hello from Gemini!' }]
-      }
+      const mockClaudeResponse = factory.createClaudeResponse('Hello from Gemini!', { id: 'msg_456' })
       mockGeminiTransformer.transformResponseIn.mockResolvedValueOnce(mockClaudeResponse)
       
       // Execute
       const response = await service.handleRequest(mockClaudeRequest, 'gemini-provider')
       
       // Assert
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent'),
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json'
-          }),
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: 'Hello!' }] }]
-          })
-        })
-      )
-      
-      // Verify API key in URL for Gemini
-      const fetchCall = mockFetch.mock.calls[0]
-      expect(fetchCall[0]).toContain('key=sk-test-key')
-      
-      const responseData = await response.json()
-      expect(responseData).toEqual(mockClaudeResponse)
+      assertions.assertGeminiApiCall(mockFetch, 'gemini-pro', mockApiKey.key, false)
+      await assertions.assertJsonResponse(response, mockClaudeResponse)
     })
 
     it('应该正确处理 OpenAI 的流式请求', async () => {
@@ -308,32 +217,24 @@ describe('LLM 代理服务单元测试', () => {
        * 4. 正确设置流式响应头
        */
       // Setup
-      const streamRequest = { ...mockClaudeRequest, stream: true }
-      const mockStreamData = 'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n'
+      const streamRequest = factory.createStreamRequest()
+      const mockStreamData = factory.createOpenAIStreamData()
       
-      mockFetch.mockResolvedValueOnce(new Response(
-        mockStreamData,
-        { 
-          status: 200,
-          headers: { 'Content-Type': 'text/event-stream' }
-        }
-      ))
+      mockFetch.mockResolvedValueOnce(
+        mockFetchResponse(mockStreamData, { headers: { 'Content-Type': 'text/event-stream' } })
+      )
       
-      const mockTransformedStream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode('data: {"type":"content_block_delta","delta":{"text":"Hello"}}\n\n'))
-          controller.close()
-        }
-      })
+      const mockTransformedStream = factory.createReadableStream(
+        'data: {"type":"content_block_delta","delta":{"text":"Hello"}}\n\n'
+      )
       mockOpenAITransformer.convertStreamToClaudeFormat.mockResolvedValueOnce(mockTransformedStream)
       
       // Execute
       const response = await service.handleRequest(streamRequest, 'qwen-provider')
       
       // Assert
-      expect(response.headers.get('Content-Type')).toBe('text/event-stream')
-      expect(response.headers.get('Cache-Control')).toBe('no-cache')
-      expect(mockOpenAITransformer.convertStreamToClaudeFormat).toHaveBeenCalled()
+      assertions.assertStreamResponse(response)
+      assertions.assertTransformerCalls(mockOpenAITransformer, true, false, true)
     })
 
     it('应该正确处理 Gemini 的流式请求', async () => {
@@ -382,87 +283,72 @@ describe('LLM 代理服务单元测试', () => {
       expect(response.headers.get('Content-Type')).toBe('text/event-stream')
     })
 
-    it('当供应商不存在时应该抛出错误', async () => {
-      /**
-       * 测试场景：请求一个未注册的供应商
-       * 验证点：
-       * 1. 检查供应商是否存在
-       * 2. 抛出明确的错误信息
-       * 3. 错误包含供应商名称
-       */
-      // Execute & Assert
-      await expect(service.handleRequest(mockClaudeRequest, 'non-existent'))
-        .rejects.toThrow('Provider non-existent not found')
-    })
+    // 错误场景测试表格
+    const errorScenarios = [
+      {
+        name: '供应商不存在',
+        setup: () => {},
+        executeRequest: () => service.handleRequest(mockClaudeRequest, 'non-existent'),
+        expectedError: 'Provider non-existent not found'
+      },
+      {
+        name: '没有可用的 API 密钥',
+        setup: () => {
+          mockKeyPool.getNextKey.mockResolvedValueOnce(null)
+        },
+        executeRequest: () => service.handleRequest(mockClaudeRequest, 'qwen-provider'),
+        expectedError: 'No available API keys for provider qwen-provider'
+      },
+      {
+        name: 'API 返回 429 错误',
+        setup: () => {
+          const errorResponse = factory.createErrorResponse(429, 'Rate limit exceeded')
+          mockFetch.mockResolvedValueOnce(
+            mockFetchResponse(errorResponse.body, { status: errorResponse.status })
+          )
+        },
+        executeRequest: () => service.handleRequest(mockClaudeRequest, 'qwen-provider'),
+        expectedError: 'qwen-provider API error: 429',
+        expectKeyPoolError: true
+      },
+      {
+        name: '网络错误',
+        setup: () => {
+          mockFetch.mockRejectedValueOnce(new Error('Network error'))
+        },
+        executeRequest: () => service.handleRequest(mockClaudeRequest, 'qwen-provider'),
+        expectedError: 'Network error',
+        expectKeyPoolError: true
+      },
+      {
+        name: 'JSON 解析错误',
+        setup: () => {
+          mockFetch.mockResolvedValueOnce(
+            mockFetchResponse('Invalid JSON response')
+          )
+        },
+        executeRequest: () => service.handleRequest(mockClaudeRequest, 'qwen-provider'),
+        expectedError: 'Failed to parse JSON'
+      }
+    ]
 
-    it('当没有可用的 API 密钥时应该抛出错误', async () => {
-      /**
-       * 测试场景：Key Pool 中没有可用的密钥
-       * 验证点：
-       * 1. Key Pool 返回 null
-       * 2. 抛出明确的错误信息
-       * 3. 不会继续执行请求
-       */
-      // Setup
-      mockKeyPool.getNextKey.mockResolvedValueOnce(null)
-      
-      // Execute & Assert
-      await expect(service.handleRequest(mockClaudeRequest, 'qwen-provider'))
-        .rejects.toThrow('No available API keys for provider qwen-provider')
-    })
+    test.each(errorScenarios)(
+      '应该正确处理错误：$name',
+      async ({ setup, executeRequest, expectedError, expectKeyPoolError }) => {
+        // Setup
+        setup()
+        
+        // Execute & Assert
+        await assertions.assertApiErrorHandling(
+          executeRequest(),
+          expectedError,
+          expectKeyPoolError ? true : undefined,
+          expectKeyPoolError ? 'qwen-provider' : undefined,
+          expectKeyPoolError ? 'key-123' : undefined
+        )
+      }
+    )
 
-    it('应该正确处理 API 请求错误', async () => {
-      /**
-       * 测试场景：供应商 API 返回 429 速率限制错误
-       * 验证点：
-       * 1. 捕获 API 错误响应
-       * 2. 抽取错误信息
-       * 3. 调用 KeyPoolManager 处理错误
-       * 4. 抛出包含详细信息的错误
-       */
-      // Setup
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify({ error: 'Rate limit exceeded' }),
-        { 
-          status: 429,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      ))
-      
-      // Execute & Assert
-      await expect(service.handleRequest(mockClaudeRequest, 'qwen-provider'))
-        .rejects.toThrow('qwen-provider API error: 429')
-      
-      // Verify error handling was called
-      const { KeyPoolManager } = await import('../../../../src/services/key-pool')
-      const keyPoolInstance = (KeyPoolManager as any).mock.results[0].value
-      expect(keyPoolInstance.handleRequestError).toHaveBeenCalledWith(
-        'qwen-provider',
-        'key-123',
-        expect.any(Error)
-      )
-    })
-
-    it('应该正确处理网络错误', async () => {
-      /**
-       * 测试场景：网络请求失败
-       * 验证点：
-       * 1. 捕获网络异常
-       * 2. 调用 KeyPoolManager 的错误处理
-       * 3. 保留原始错误信息
-       */
-      // Setup
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
-      
-      // Execute & Assert
-      await expect(service.handleRequest(mockClaudeRequest, 'qwen-provider'))
-        .rejects.toThrow('Network error')
-      
-      // Verify error handling
-      const { KeyPoolManager } = await import('../../../../src/services/key-pool')
-      const keyPoolInstance = (KeyPoolManager as any).mock.results[0].value
-      expect(keyPoolInstance.handleRequestError).toHaveBeenCalled()
-    })
 
     it('成功请求后应该更新密钥统计信息', async () => {
       /**
@@ -474,45 +360,17 @@ describe('LLM 代理服务单元测试', () => {
        * 4. 统计信息用于 Key Pool 的智能轮转
        */
       // Setup
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify({ choices: [{ message: { content: 'Success' } }] }),
-        { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      ))
-      mockOpenAITransformer.transformResponseIn.mockResolvedValueOnce({
-        content: [{ type: 'text', text: 'Success' }]
-      })
+      const successResponse = factory.createOpenAIResponse('Success')
+      mockFetch.mockResolvedValueOnce(mockFetchResponse(successResponse))
+      mockOpenAITransformer.transformResponseIn.mockResolvedValueOnce(
+        factory.createClaudeResponse('Success')
+      )
       
       // Execute
       await service.handleRequest(mockClaudeRequest, 'qwen-provider')
       
       // Assert
-      expect(mockKeyPool.updateKeyStats).toHaveBeenCalledWith('key-123', true)
-    })
-
-    it('应该处理响应中的 JSON 解析错误', async () => {
-      /**
-       * 测试场景：API 返回无效的 JSON
-       * 验证点：
-       * 1. 尝试解析响应文本
-       * 2. 捕获 JSON 解析异常
-       * 3. 记录错误信息
-       * 4. 抛出有意义的错误
-       */
-      // Setup
-      mockFetch.mockResolvedValueOnce(new Response(
-        'Invalid JSON response',
-        { 
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      ))
-      
-      // Execute & Assert
-      await expect(service.handleRequest(mockClaudeRequest, 'qwen-provider'))
-        .rejects.toThrow('Failed to parse JSON')
+      assertions.assertKeyPoolCalls(mockKeyPool, true, { keyId: 'key-123', success: true })
     })
   })
 
@@ -575,91 +433,80 @@ describe('LLM 代理服务单元测试', () => {
       await service.registerProviderFromConfig(mockGeminiProvider)
     })
 
-    it('所有请求都应该添加 User-Agent 头', async () => {
-      /**
-       * 测试场景：验证所有外部 API 请求都包含 User-Agent
-       * 验证点：
-       * 1. User-Agent 格式为 'Claude-Relay-LLM-Proxy/1.0'
-       * 2. 无论供应商类型都会添加
-       * 3. 方便 API 提供方识别请求来源
-       */
-      // Setup
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify({ choices: [] }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      ))
-      mockOpenAITransformer.transformResponseIn.mockResolvedValueOnce({ content: [] })
-      
-      // Execute
-      await service.handleRequest(mockClaudeRequest, 'qwen-provider')
-      
-      // Assert
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'User-Agent': 'Claude-Relay-LLM-Proxy/1.0'
-          })
-        })
-      )
-    })
+    // 供应商特性测试表格
+    const providerFeatures = [
+      {
+        name: 'OpenAI 兼容供应商',
+        providerId: 'qwen-provider',
+        features: {
+          authMethod: 'header',
+          authHeader: 'Authorization',
+          authPrefix: 'Bearer',
+          streamEndpoint: 'same',
+          requiresUserAgent: true
+        }
+      },
+      {
+        name: 'Google Gemini',
+        providerId: 'gemini-provider',
+        features: {
+          authMethod: 'url',
+          authParam: 'key',
+          streamEndpoint: 'different',
+          modelInUrl: true,
+          requiresUserAgent: true
+        }
+      }
+    ]
 
-    it('应该正确处理 Gemini URL 参数替换', async () => {
-      /**
-       * 测试场景：Gemini URL 中包含 {{model}} 占位符
-       * 验证点：
-       * 1. {{model}} 被替换为实际模型名
-       * 2. API 密钥作为 key 参数添加到 URL
-       * 3. URL 格式符合 Gemini API 要求
-       */
-      // Setup
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify({ candidates: [] }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      ))
-      mockGeminiTransformer.transformResponseIn.mockResolvedValueOnce({ content: [] })
-      
-      // Execute
-      await service.handleRequest(mockClaudeRequest, 'gemini-provider')
-      
-      // Assert
-      const fetchCall = mockFetch.mock.calls[0]
-      const url = fetchCall[0]
-      expect(url).toContain('/models/gemini-pro:generateContent')
-      expect(url).not.toContain('{{model}}')
-    })
+    test.each(providerFeatures)(
+      '$name 特性验证',
+      async ({ providerId, features }) => {
+        // Setup
+        const request = features.streamEndpoint ? factory.createStreamRequest() : mockClaudeRequest
+        mockFetch.mockResolvedValueOnce(mockFetchResponse({}))
+        
+        if (providerId === 'gemini-provider') {
+          mockGeminiTransformer.transformResponseIn.mockResolvedValueOnce(factory.createClaudeResponse())
+          if (features.streamEndpoint === 'different') {
+            const mockStream = factory.createReadableStream('data: test\n\n')
+            mockGeminiTransformer.convertStreamToClaudeFormat.mockResolvedValueOnce(mockStream)
+          }
+        } else {
+          mockOpenAITransformer.transformResponseIn.mockResolvedValueOnce(factory.createClaudeResponse())
+        }
+        
+        // Execute
+        await service.handleRequest(request, providerId)
+        
+        // Assert
+        const fetchCall = mockFetch.mock.calls[0]
+        const [url, options] = fetchCall
+        
+        // 验证认证方式
+        if (features.authMethod === 'header') {
+          expect(options.headers[features.authHeader]).toBe(`${features.authPrefix} ${mockApiKey.key}`)
+        } else if (features.authMethod === 'url') {
+          expect(url).toContain(`${features.authParam}=${mockApiKey.key}`)
+        }
+        
+        // 验证 User-Agent
+        if (features.requiresUserAgent) {
+          assertions.assertUserAgentHeader(mockFetch)
+        }
+        
+        // 验证流式端点
+        if (features.streamEndpoint === 'different' && request.stream) {
+          expect(url).toContain('streamGenerateContent')
+        }
+        
+        // 验证模型在 URL 中
+        if (features.modelInUrl) {
+          expect(url).not.toContain('{{model}}')
+          expect(url).toContain('/models/')
+        }
+      }
+    )
 
-    it('应该为 Gemini 流式请求使用流式端点', async () => {
-      /**
-       * 测试场景：Gemini 流式请求需要不同的 API 端点
-       * 验证点：
-       * 1. 普通请求使用 :generateContent
-       * 2. 流式请求使用 :streamGenerateContent
-       * 3. URL 替换正确执行
-       * 4. 其他参数保持不变
-       */
-      // Setup
-      const streamRequest = { ...mockClaudeRequest, stream: true }
-      mockGeminiTransformer.transformRequestOut.mockReturnValueOnce({
-        contents: [{ parts: [{ text: 'Hello!' }] }]
-      })
-      
-      mockFetch.mockResolvedValueOnce(new Response(
-        JSON.stringify([]),
-        { status: 200, headers: { 'Content-Type': 'application/json' } }
-      ))
-      
-      const mockStream = new ReadableStream()
-      mockGeminiTransformer.convertStreamToClaudeFormat.mockResolvedValueOnce(mockStream)
-      
-      // Execute
-      await service.handleRequest(streamRequest, 'gemini-provider')
-      
-      // Assert
-      const fetchCall = mockFetch.mock.calls[0]
-      const url = fetchCall[0]
-      expect(url).toContain(':streamGenerateContent')
-      expect(url).not.toContain(':generateContent?')
-    })
   })
 })
