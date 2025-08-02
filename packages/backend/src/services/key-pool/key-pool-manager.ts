@@ -19,7 +19,7 @@ export class KeyPoolManager {
   /**
    * 获取或创建 Key Pool
    */
-  async getOrCreatePool(providerId: string, providerType: 'openai' | 'google'): Promise<BaseKeyPool> {
+  async getOrCreatePool(providerId: string, providerType: 'openai' | 'gemini'): Promise<BaseKeyPool> {
     // 检查缓存
     if (this.pools.has(providerId)) {
       return this.pools.get(providerId)!
@@ -43,9 +43,9 @@ export class KeyPoolManager {
   /**
    * 创建特定类型的 Key Pool
    */
-  private createPool(providerId: string, providerType: 'openai' | 'google'): BaseKeyPool {
+  private createPool(providerId: string, providerType: 'openai' | 'gemini'): BaseKeyPool {
     switch (providerType) {
-      case 'google':
+      case 'gemini':
         return new GeminiKeyPool(providerId, this.kv)
       case 'openai':
       default:
