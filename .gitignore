@@ -43,6 +43,8 @@ packages/frontend/wrangler.toml
 
 # Local KV Storage
 .kv-storage/
+.kv-storage-test/
+.test-kv-*/
 
 # Testing
 coverage/

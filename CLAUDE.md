@@ -372,11 +372,17 @@ packages/backend/
 ├── test/                                     # 测试目录（与 src 同级）
 │   ├── setup.ts                             # 测试环境配置
 │   ├── helpers.ts                           # 测试辅助函数
+│   ├── factories/                           # 测试数据工厂
+│   │   └── claude-proxy-factory.ts          # Claude 代理测试数据工厂
+│   ├── assertions/                          # 通用断言函数
+│   │   └── claude-proxy-assertions.ts       # Claude 代理断言集合
 │   └── unit/                                # 单元测试
 │       ├── routes/
 │       │   └── admin/
 │       │       └── providers.test.ts        # 供应商路由测试
 │       └── services/
+│           ├── proxy/
+│           │   └── claude-proxy.test.ts     # Claude 代理服务测试
 │           └── key-pool/
 │               └── generic-key-pool.test.ts # Key Pool 服务测试
 ├── vitest.config.ts                         # Vitest 测试配置
@@ -456,6 +462,90 @@ shared/
 - **可视化测试**: 支持 Vitest UI，提供直观的测试结果和覆盖率报告
 - **持续集成**: 所有测试必须通过才能部署，确保代码质量
 - **测试覆盖**: 核心业务逻辑和 API 端点都有相应的测试用例
+
+### 测试架构最佳实践
+
+#### 测试文件组织
+```
+packages/backend/
+├── src/                     # 源代码
+└── test/                    # 测试代码（与 src 同级）
+    ├── unit/               # 单元测试
+    ├── integration/        # 集成测试
+    ├── factories/          # 测试数据工厂
+    ├── assertions/         # 通用断言函数
+    ├── helpers.ts          # 测试辅助函数
+    └── setup.ts            # 测试环境配置
+```
+
+#### 测试数据工厂 (Test Data Factory)
+```typescript
+// test/factories/claude-proxy-factory.ts
+export class ClaudeProxyTestFactory {
+  static createValidToken(overrides = {}) { /* ... */ }
+  static createExpiredToken() { /* ... */ }
+  static createProvider(type, overrides = {}) { /* ... */ }
+  static createClaudeRequest(overrides = {}) { /* ... */ }
+}
+```
+**优势**: 集中管理测试数据、减少重复代码、易于创建数据变体
+
+#### 通用断言函数 (Common Assertions)
+```typescript
+// test/assertions/claude-proxy-assertions.ts
+export class ClaudeProxyAssertions {
+  static assertCorsHeaders(response) { /* ... */ }
+  static assertStreamHeaders(response) { /* ... */ }
+  static assertErrorResponse(response, status, type, message) { /* ... */ }
+  static assertClaudeApiCall(mockFetch, token, body) { /* ... */ }
+}
+```
+**优势**: 提高测试可读性、减少断言代码重复、统一验证逻辑
+
+#### 参数化测试 (Parameterized Tests)
+```typescript
+// 使用测试表格定义多个场景
+const errorScenarios = [
+  { name: '401 认证错误', status: 401, error: { type: 'invalid_request_error' } },
+  { name: '403 权限错误', status: 403, error: { type: 'permission_error' } },
+  { name: '429 速率限制', status: 429, error: { type: 'rate_limit_error' } }
+]
+
+test.each(errorScenarios)(
+  '应该正确处理 $name',
+  async ({ status, error }) => { /* 测试逻辑 */ }
+)
+```
+**优势**: 避免重复测试代码、易于添加新场景、提高测试覆盖率
+
+#### 测试辅助函数
+```typescript
+// 创建代理请求
+const createProxyRequest = (body = mockRequest, options = {}) => {
+  return new Request('http://localhost/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    body: JSON.stringify(body),
+    ...options
+  })
+}
+
+// 模拟响应
+const mockFetchResponse = (body, options = {}) => {
+  return new Response(
+    typeof body === 'string' ? body : JSON.stringify(body),
+    { status: options.status || 200, headers: { 'Content-Type': 'application/json' } }
+  )
+}
+```
+
+#### 测试最佳实践
+1. **测试隔离**: 每个测试完全独立，使用 `beforeEach` 和 `afterEach` 确保环境干净
+2. **Mock 策略**: Mock 所有外部依赖（网络请求、数据库等）
+3. **测试命名**: 使用描述性的中文测试名称，清晰说明测试场景
+4. **关注行为**: 测试可观察的行为而非实现细节
+5. **错误优先**: 不仅测试成功路径，更要测试各种错误场景
+6. **性能考虑**: 并行执行清理操作，使用 `Promise.all` 提高测试速度
 
 ## 管理中心功能
 
