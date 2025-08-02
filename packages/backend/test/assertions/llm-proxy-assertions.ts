@@ -1,5 +1,4 @@
 import { expect } from 'vitest'
-import type { Response } from 'node-fetch'
 
 /**
  * LLM 代理测试断言集合
