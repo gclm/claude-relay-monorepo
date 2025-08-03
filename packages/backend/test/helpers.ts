@@ -1,14 +1,18 @@
 import { LocalKVStorage } from '../src/utils/local-kv-storage'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
 
 // 全局测试 KV 存储实例，在所有测试间共享但在每次测试前清理
 let globalTestKV: LocalKVStorage | null = null
 
 /**
  * 获取或创建全局测试 KV 存储实例
+ * 使用测试数据目录作为存储路径
  */
 function getTestKV(): LocalKVStorage {
   if (!globalTestKV) {
-    globalTestKV = new LocalKVStorage('.kv-storage-test')
+    const testDataPath = join(__dirname, 'integration/services/proxy/data/.kv-storage')
+    globalTestKV = new LocalKVStorage(testDataPath)
   }
   return globalTestKV
 }

@@ -50,41 +50,70 @@
                placeholder="https://api.example.com/v1/chat/completions">
       </div>
 
-      <!-- 模型选择 -->
+      <!-- 模型管理 -->
       <div>
         <label class="block text-sm font-medium text-gray-700 mb-2">
-          模型 <span class="text-red-500">*</span>
+          支持的模型 <span class="text-red-500">*</span>
         </label>
-        <div v-if="availableModels.length > 0">
-          <select v-model="form.model"
-                  required
-                  class="block w-full px-3 py-3 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200">
-            <option value="">请选择模型</option>
-            <option v-for="model in availableModels" :key="model" :value="model">
-              {{ model }}
-            </option>
-            <option value="custom">自定义模型...</option>
-          </select>
-        </div>
-        <!-- 当没有预设模型时，直接编辑 form.model -->
-        <div v-if="availableModels.length === 0">
-          <input type="text" 
-                 v-model="form.model"
-                 required
-                 autocomplete="off"
-                 class="block w-full px-3 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
-                 placeholder="请输入模型名称，例如：gpt-3.5-turbo">
-        </div>
-        <!-- 当选择自定义模型时，编辑 customModel -->
-        <div v-else-if="form.model === 'custom'">
-          <input type="text" 
-                 v-model="customModel"
-                 required
-                 autocomplete="off"
-                 class="block w-full px-3 py-3 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200 mt-2"
-                 placeholder="请输入模型名称，例如：gpt-3.5-turbo">
+        <div class="space-y-3">
+          <!-- 预设模型快速添加 -->
+          <div v-if="availableModels.length > 0" class="bg-gray-50 p-4 rounded-xl">
+            <label class="block text-sm font-medium text-gray-600 mb-2">快速添加预设模型</label>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="model in availableModels" 
+                      :key="model"
+                      @click="addModel(model)"
+                      type="button"
+                      :disabled="form.models.includes(model)"
+                      class="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      :class="form.models.includes(model) ? 'bg-orange-100 text-orange-600 border-orange-200' : 'bg-white text-gray-600'">
+                <span v-if="form.models.includes(model)">✓</span>
+                {{ model }}
+              </button>
+            </div>
+          </div>
+
+          <!-- 当前选择的模型列表 -->
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-2">
+              已选模型 ({{ form.models.length }})
+            </label>
+            <div v-if="form.models.length === 0" class="text-sm text-gray-500 italic py-3 px-4 border border-dashed border-gray-200 rounded-xl text-center">
+              请添加至少一个模型
+            </div>
+            <div v-else class="space-y-2">
+              <div v-for="(model, index) in form.models" 
+                   :key="index"
+                   class="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2 group hover:border-orange-200 transition-colors">
+                <span class="text-sm text-gray-700 font-mono">{{ model }}</span>
+                <button @click="removeModel(index)"
+                        type="button" 
+                        class="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 添加自定义模型 -->
+          <div class="flex space-x-2">
+            <input type="text" 
+                   v-model="customModel"
+                   @keyup.enter="addCustomModel"
+                   class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition duration-200"
+                   placeholder="输入模型名称后按回车添加">
+            <button @click="addCustomModel"
+                    type="button"
+                    :disabled="!customModel.trim() || form.models.includes(customModel.trim())"
+                    class="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              添加
+            </button>
+          </div>
         </div>
       </div>
+
 
       <!-- 描述 -->
       <div>
@@ -159,9 +188,29 @@ const customModel = ref('')
 const form = ref({
   name: props.provider?.name || '',
   endpoint: props.provider?.endpoint || '',
-  model: props.provider?.model || '',
+  models: props.provider?.models || [],
   description: props.provider?.description || ''
 })
+
+// 多模型管理方法
+const addModel = (model: string) => {
+  if (model && !form.value.models.includes(model)) {
+    form.value.models.push(model)
+  }
+}
+
+const removeModel = (index: number) => {
+  form.value.models.splice(index, 1)
+}
+
+const addCustomModel = () => {
+  const model = customModel.value.trim()
+  if (model && !form.value.models.includes(model)) {
+    form.value.models.push(model)
+    customModel.value = ''
+  }
+}
+
 
 const currentProviderConfig = computed(() => {
   if (!selectedProviderType.value) return null
@@ -186,26 +235,10 @@ watch(selectedProviderType, (newType) => {
     const config = PROVIDER_CONFIGS[newType as keyof typeof PROVIDER_CONFIGS]
     if (config) {
       form.value.name = config.name
-      // 只有当配置中有 endpoint 时才自动填充
       form.value.endpoint = config.endpoint || ''
-      form.value.model = ''
+      // 自动添加预设模型
+      form.value.models = [...config.models]
     }
-  }
-})
-
-// 监听模型选择
-watch(() => form.value.model, (newModel) => {
-  if (newModel === 'custom') {
-    form.value.model = customModel.value
-  } else if (newModel && newModel !== 'custom') {
-    customModel.value = ''
-  }
-})
-
-// 监听自定义模型输入
-watch(customModel, (newValue) => {
-  if (form.value.model === 'custom' && availableModels.value.length > 0) {
-    form.value.model = newValue
   }
 })
 
@@ -216,13 +249,17 @@ const selectProviderType = (configKey: string) => {
 }
 
 const handleSubmit = () => {
-  const finalModel = form.value.model === 'custom' ? customModel.value : form.value.model
+  // 验证至少有一个模型
+  if (form.value.models.length === 0) {
+    alert('请至少添加一个模型')
+    return
+  }
   
   if (isEdit.value) {
     const editData: EditProviderRequest = {
       name: form.value.name,
       endpoint: form.value.endpoint,
-      model: finalModel,
+      models: form.value.models,
       description: form.value.description
     }
     emit('submit', editData)
@@ -234,7 +271,7 @@ const handleSubmit = () => {
       name: form.value.name,
       type: config.type,
       endpoint: form.value.endpoint,
-      model: finalModel,
+      models: form.value.models,
       transformer: config.transformer,
       description: form.value.description
     }
@@ -250,7 +287,7 @@ const handleCancel = () => {
     form.value = {
       name: '',
       endpoint: '',
-      model: '',
+      models: [],
       description: ''
     }
     customModel.value = ''
@@ -263,7 +300,7 @@ const resetForm = () => {
   form.value = {
     name: '',
     endpoint: '',
-    model: '',
+    models: [],
     description: ''
   }
   customModel.value = ''

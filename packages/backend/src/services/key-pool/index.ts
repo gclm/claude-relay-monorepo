@@ -4,5 +4,5 @@
 
 export { BaseKeyPool } from './base-key-pool'
 export { GeminiKeyPool } from './gemini-key-pool'
-export { GenericKeyPool } from './generic-key-pool'
+export { OpenAIKeyPool } from './openai-key-pool'
 export { KeyPoolManager } from './key-pool-manager'

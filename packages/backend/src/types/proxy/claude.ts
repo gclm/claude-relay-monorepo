@@ -2,17 +2,18 @@
  * Claude 代理相关类型定义
  */
 
+import type {
+  MessageCreateParamsBase,
+  MessageParam,
+  Tool
+} from '@anthropic-ai/sdk/resources/messages'
+
 /**
  * Claude API 请求格式
+ * 直接使用官方 SDK 的 MessageCreateParamsBase
+ * 已包含 thinking 配置
  */
-export interface ClaudeRequest {
-  model?: string
-  messages: any[]
-  max_tokens?: number
-  temperature?: number
-  stream?: boolean
-  system?: string | any[]
-}
+export type ClaudeRequest = MessageCreateParamsBase
 
 /**
  * Claude OAuth Token 格式

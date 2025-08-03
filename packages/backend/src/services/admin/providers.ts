@@ -42,13 +42,12 @@ export class ProviderService {
       name: request.name,
       type: request.type,
       endpoint: request.endpoint,
-      model: request.model,
+      models: request.models,
       transformer: request.transformer,
       description: request.description,  // 可选的描述字段
       status: 'active',
       createdAt: now,
-      updatedAt: now,
-      keyPoolEnabled: true  // 新供应商默认启用 Key Pool
+      updatedAt: now
     }
 
     await this.providerRepo.add(newProvider)
@@ -72,7 +71,7 @@ export class ProviderService {
       ...existingProvider,
       name: request.name,
       endpoint: request.endpoint,
-      model: request.model,
+      models: request.models,
       transformer: request.transformer || 'claude-to-openai',
       // 如果提供了 description，则更新；否则保持原值
       description: request.description !== undefined ? request.description : existingProvider.description,

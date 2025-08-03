@@ -16,6 +16,10 @@ export const API_ENDPOINTS = {
   ADMIN_PROVIDERS: '/api/admin/providers', // 模型供应商管理
   ADMIN_MODELS: '/api/admin/models',   // 可用模型列表
   ADMIN_SELECT_MODEL: '/api/admin/select-model', // 选择模型
+  ADMIN_CURRENT_MODEL: '/api/admin/current-model', // 获取当前模型选择
+  
+  // 路由配置管理端点
+  ADMIN_ROUTE_CONFIGS: '/api/admin/route-configs', // 路由配置管理
   
   // Claude 账号管理端点
   ADMIN_CLAUDE_ACCOUNTS: '/api/admin/claude-accounts', // Claude 账号管理

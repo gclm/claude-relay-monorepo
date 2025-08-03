@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>路由配置表单原型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">添加路由配置</h1>
+        
+        <form class="space-y-6">
+            <!-- 基本信息 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">基本信息</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            配置名称 <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" 
+                               class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="例如：高性能路由策略">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            描述
+                        </label>
+                        <textarea rows="2"
+                                  class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  placeholder="路由配置的详细描述"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模型配置 -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">模型配置</h3>
+                <div class="space-y-6">
+                    
+                    <!-- 默认模型 -->
+                    <div class="pb-6 border-b border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <h4 class="text-sm font-medium text-gray-900">默认模型</h4>
+                                <span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">必填</span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">所有请求的基础路由目标</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                                <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">请选择供应商</option>
+                                    <option value="claude-official">Claude 官方</option>
+                                    <option value="qwen">魔搭 Qwen</option>
+                                    <option value="glm">智谱 AI</option>
+                                    <option value="gemini">Google Gemini</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">模型</label>
+                                <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">请选择模型</option>
+                                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                                    <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 长上下文模型 -->
+                    <div class="pb-6 border-b border-gray-100">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <h4 class="text-sm font-medium text-gray-900">长上下文模型</h4>
+                                <span class="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">可选</span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">处理大量文档和长对话的专用模型</p>
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                                    <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">不使用长上下文模型</option>
+                                        <option value="claude-official">Claude 官方</option>
+                                        <option value="glm">智谱 AI (GLM-4-Long)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">模型</label>
+                                    <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">请选择模型</option>
+                                        <option value="glm-4-long">GLM-4-Long</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- 触发阈值配置 -->
+                            <div class="bg-yellow-50 p-4 rounded-lg">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    触发阈值（字符数）
+                                </label>
+                                <div class="flex items-center space-x-2">
+                                    <input type="number" 
+                                           value="80000"
+                                           min="1000"
+                                           step="1000"
+                                           class="block w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <span class="text-sm text-gray-500">当输入超过此字符数时自动切换</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 思考模型 -->
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center space-x-2">
+                                <h4 class="text-sm font-medium text-gray-900">思考模型</h4>
+                                <span class="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">可选</span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">复杂推理和数学问题专用模型</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">供应商</label>
+                                <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">不使用思考模型</option>
+                                    <option value="qwen">魔搭 Qwen</option>
+                                    <option value="gemini">Google Gemini</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">模型</label>
+                                <select class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">请选择模型</option>
+                                    <option value="qwen-math">Qwen2.5-Math-72B-Instruct</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 按钮 -->
+            <div class="flex justify-end space-x-3">
+                <button type="button" 
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200 text-sm">
+                    取消
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 text-sm">
+                    创建配置
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 交互预览说明 -->
+    <div class="max-w-4xl mx-auto mt-8 p-4 bg-blue-50 rounded-lg">
+        <h3 class="font-medium text-blue-900 mb-2">原型说明</h3>
+        <ul class="text-sm text-blue-700 space-y-1">
+            <li>• 默认模型为必填项，始终显示</li>
+            <li>• 长上下文和思考模型为可选，不填写则不启用</li>
+            <li>• 选择长上下文模型后，阈值配置区域会显示（可用 JS 控制）</li>
+            <li>• 供应商选择后，模型下拉框会动态更新可用模型列表</li>
+        </ul>
+    </div>
+</body>
+</html>

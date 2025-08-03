@@ -5,7 +5,7 @@
 
 import { BaseKeyPool } from './base-key-pool'
 import { GeminiKeyPool } from './gemini-key-pool'
-import { GenericKeyPool } from './generic-key-pool'
+import { OpenAIKeyPool } from './openai-key-pool'
 import { ModelProvider } from '../../../../../shared/types/admin/providers'
 
 export class KeyPoolManager {
@@ -49,7 +49,7 @@ export class KeyPoolManager {
         return new GeminiKeyPool(providerId, this.kv)
       case 'openai':
       default:
-        return new GenericKeyPool(providerId, this.kv)
+        return new OpenAIKeyPool(providerId, this.kv)
     }
   }
 
@@ -118,7 +118,7 @@ export class KeyPoolManager {
     const pool = this.pools.get(providerId)
     
     if (pool && 'handleRequestError' in pool) {
-      await (pool as GeminiKeyPool | GenericKeyPool).handleRequestError(keyId, error)
+      await (pool as GeminiKeyPool | OpenAIKeyPool).handleRequestError(keyId, error)
     } else {
       console.warn(`No error handler for pool ${providerId}`)
     }
@@ -149,5 +149,20 @@ export class KeyPoolManager {
     
     const keys = await pool.getKeys()
     return keys.filter(k => k.status === 'active').length
+  }
+
+  /**
+   * 记录成功的请求统计
+   */
+  async recordSuccess(providerId: string, providerType: 'openai' | 'gemini', keyId: string): Promise<void> {
+    const pool = await this.getOrCreatePool(providerId, providerType)
+    await pool.updateKeyStats(keyId, true)
+  }
+
+  /**
+   * 记录失败的请求统计（调用 handleRequestError）
+   */
+  async recordFailure(providerId: string, keyId: string, error: Error): Promise<void> {
+    await this.handleRequestError(providerId, keyId, error)
   }
 }
