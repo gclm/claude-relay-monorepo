@@ -13,12 +13,8 @@ export class ModelRouterService {
   
   constructor() {
     // 使用 cl100k_base 编码器（GPT-4 和 Claude 3 使用的编码器）
-    try {
-      this.encoder = get_encoding('cl100k_base')
-    } catch (error) {
-      console.warn('Failed to initialize tiktoken encoder, falling back to estimation')
-      this.encoder = null
-    }
+    this.encoder = get_encoding('cl100k_base')
+    console.log('✅ TikToken 编码器初始化成功，使用精确 token 计算')
   }
   
   /**
@@ -91,18 +87,13 @@ export class ModelRouterService {
   
   /**
    * 精确计算消息的总 token 数
+   * 使用 TikToken cl100k_base 编码器进行精确计算
    */
   private calculateTokenCount(
     messages: MessageParam[],
     system: any,
     tools: Tool[]
   ): number {
-    if (!this.encoder) {
-      // 如果编码器不可用，使用简单估算
-      const text = JSON.stringify({ messages, system, tools })
-      return Math.ceil(text.length / 4)
-    }
-    
     let tokenCount = 0
     
     // 处理消息

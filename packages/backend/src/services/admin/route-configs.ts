@@ -38,7 +38,6 @@ export class RouteConfigService {
       description: request.description,
       rules: request.rules,
       config: request.config,
-      status: 'active',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
@@ -66,7 +65,6 @@ export class RouteConfigService {
       ...(request.description !== undefined && { description: request.description }),
       ...(request.rules !== undefined && { rules: request.rules }),
       ...(request.config !== undefined && { config: request.config }),
-      ...(request.status !== undefined && { status: request.status }),
       updatedAt: new Date().toISOString()
     }
     

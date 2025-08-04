@@ -10,6 +10,19 @@ export const useRouteConfigs = () => {
   const showAddRouteModal = ref(false)
   const showEditRouteModal = ref(false)
   const editingRoute = ref<RouteConfig | null>(null)
+  
+  // 确认对话框状态
+  const showConfirmDialog = ref(false)
+  const confirmDialogConfig = ref<{
+    title: string
+    message: string
+    description?: string
+    type: 'danger' | 'warning' | 'info'
+  } | null>(null)
+  const confirmLoading = ref(false)
+  
+  // 单独存储确认回调函数（不参与序列化）
+  let pendingConfirmAction: (() => void) | null = null
 
   // 通知函数
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -102,47 +115,59 @@ export const useRouteConfigs = () => {
   }
 
   const deleteRouteConfig = async (id: string) => {
-    if (!confirm('确定要删除这个路由配置吗？')) return
+    const routeConfig = routeConfigs.value.find(r => r.id === id)
+    if (!routeConfig) return
     
-    try {
-      const response = await $fetch<{ success: boolean }>(
-        `${API_ENDPOINTS.ADMIN_ROUTE_CONFIGS}/${id}`,
-        {
-          method: 'DELETE',
-          baseURL: config.public.apiBaseUrl
-        }
-      )
+    confirmDialogConfig.value = {
+      title: '删除路由配置',
+      message: `确定要删除路由配置"${routeConfig.name}"吗？`,
+      description: '删除后将无法恢复，该路由配置的所有规则和设置也将被清除。',
+      type: 'danger'
+    }
+    
+    // 单独存储确认操作
+    pendingConfirmAction = async () => {
+      confirmLoading.value = true
       
-      if (response.success) {
-        await loadRouteConfigs()
-        showNotification('路由配置删除成功', 'success')
+      try {
+        const response = await $fetch<{ success: boolean }>(
+          `${API_ENDPOINTS.ADMIN_ROUTE_CONFIGS}/${id}`,
+          {
+            method: 'DELETE',
+            baseURL: config.public.apiBaseUrl
+          }
+        )
+        
+        if (response.success) {
+          await loadRouteConfigs()
+          showNotification('路由配置删除成功', 'success')
+          showConfirmDialog.value = false
+        }
+      } catch (error) {
+        console.error('Failed to delete route config:', error)
+        showNotification('删除路由配置失败', 'error')
+      } finally {
+        confirmLoading.value = false
       }
-    } catch (error) {
-      console.error('Failed to delete route config:', error)
-      showNotification('删除路由配置失败', 'error')
+    }
+    
+    showConfirmDialog.value = true
+  }
+  
+  // 确认对话框方法
+  const handleConfirmDialogCancel = () => {
+    showConfirmDialog.value = false
+    confirmDialogConfig.value = null
+    confirmLoading.value = false
+    pendingConfirmAction = null
+  }
+  
+  const handleConfirmDialogConfirm = () => {
+    if (pendingConfirmAction) {
+      pendingConfirmAction()
     }
   }
 
-  const toggleRouteConfig = async (id: string, status: 'active' | 'inactive') => {
-    try {
-      const response = await $fetch<{ success: boolean }>(
-        `${API_ENDPOINTS.ADMIN_ROUTE_CONFIGS}/${id}`,
-        {
-          method: 'PUT',
-          baseURL: config.public.apiBaseUrl,
-          body: { status }
-        }
-      )
-      
-      if (response.success) {
-        await loadRouteConfigs()
-        showNotification(`路由配置${status === 'active' ? '激活' : '停用'}成功`, 'success')
-      }
-    } catch (error) {
-      console.error('Failed to toggle route config:', error)
-      showNotification(`${status === 'active' ? '激活' : '停用'}路由配置失败`, 'error')
-    }
-  }
 
   // 路由配置显示工具方法
   const getRuleTypeDisplay = (type: string) => {
@@ -199,15 +224,19 @@ export const useRouteConfigs = () => {
     showEditRouteModal,
     editingRoute,
     
+    // 确认对话框状态
+    showConfirmDialog,
+    confirmDialogConfig,
+    confirmLoading,
+    
     // 方法
     loadRouteConfigs,
     addRouteConfig,
     editRouteConfig,
     updateRouteConfig,
     deleteRouteConfig,
-    toggleRouteConfig,
-    getRuleTypeDisplay,
-    formatRuleConditions,
-    formatDate
+    formatDate,
+    handleConfirmDialogCancel,
+    handleConfirmDialogConfirm
   }
 }

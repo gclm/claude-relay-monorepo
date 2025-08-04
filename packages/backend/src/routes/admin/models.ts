@@ -20,30 +20,38 @@ modelRoutes.get('/models', async (c) => {
   return createSuccessResponse(models, '获取模型列表成功')
 })
 
+// 获取当前选中的模型
+modelRoutes.get('/current-model', async (c) => {
+  const modelService = new ModelService(c.env.CLAUDE_RELAY_ADMIN_KV)
+  const selectedModel = await modelService.getSelectedModel()
+  
+  return createSuccessResponse(selectedModel, '获取当前模型成功')
+})
+
 // 选择模型
 modelRoutes.post('/select-model',
   validator('json', (value: any): SelectModelRequest => {
-    const { modelId, type, providerId } = value
+    const { type, routeId } = value
     
-    if (!modelId || !type) {
+    if (!type) {
       throw new HTTPException(400, {
-        message: '缺少模型 ID 或类型'
+        message: '缺少模型类型'
       })
     }
     
-    if (type === 'provider' && !providerId) {
+    if (type === 'route' && !routeId) {
       throw new HTTPException(400, {
-        message: '选择供应商模型时需要提供 providerId'
+        message: '选择路由配置模式时需要提供 routeId'
       })
     }
     
-    return { modelId, type, providerId }
+    return { type, routeId }
   }),
   async (c) => {
-    const { modelId, type, providerId } = c.req.valid('json')
+    const { type, routeId } = c.req.valid('json')
     
     const modelService = new ModelService(c.env.CLAUDE_RELAY_ADMIN_KV)
-    const selectedModel = await modelService.selectModel(modelId, type, providerId)
+    const selectedModel = await modelService.selectModel(type, routeId)
     
     return createSuccessResponse(selectedModel, '选择模型成功')
   }

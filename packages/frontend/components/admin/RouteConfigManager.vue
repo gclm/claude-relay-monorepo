@@ -30,88 +30,85 @@
                 <p class="text-sm text-gray-500">{{ routeConfig.description }}</p>
               </div>
             </div>
-            <span :class="routeConfig.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'"
-                  class="px-3 py-1 text-xs font-medium rounded-full">
-              {{ routeConfig.enabled ? '• 启用' : '• 禁用' }}
+            <span class="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+              • 活跃
             </span>
           </div>
           
           <div class="space-y-4 mb-6">
-            <div class="space-y-3">
+            <div class="space-y-4">
               <h5 class="text-sm font-medium text-gray-700">
-                路由规则 ({{ getConfiguredModelsCount(routeConfig.rules) }}/5):
+                路由配置详情
               </h5>
-              <div class="grid grid-cols-1 gap-2">
+              
+              <!-- 已配置的路由列表 -->
+              <div class="space-y-2.5">
                 <!-- 默认模型 -->
-                <ModelDisplayCard
-                  title="默认模型"
-                  :provider-id="routeConfig.rules?.default?.providerId"
-                  :model="routeConfig.rules?.default?.model"
-                  badgeColor="bg-green-100 text-green-600"
-                  badgeText="必选"
-                />
+                <div class="flex items-center space-x-3 text-sm">
+                  <div class="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                  <span class="font-medium text-gray-700 min-w-[80px]">默认模型</span>
+                  <span class="font-mono text-gray-800">{{ getProviderName(routeConfig.rules?.default?.providerId || 'anthropic') }} @ {{ routeConfig.rules?.default?.model || 'claude-3-5-sonnet-20241022' }}</span>
+                </div>
                 
                 <!-- 后台任务模型 -->
-                <ModelDisplayCard
-                  v-if="routeConfig.rules.background"
-                  title="后台任务"
-                  :provider-id="routeConfig.rules.background.providerId"
-                  :model="routeConfig.rules.background.model"
-                  badgeColor="bg-blue-100 text-blue-600"
-                  badgeText="后台"
-                />
+                <div v-if="routeConfig.rules.background" class="flex items-center space-x-3 text-sm">
+                  <div class="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                  <span class="font-medium text-gray-700 min-w-[80px]">后台任务</span>
+                  <span class="font-mono text-gray-800">{{ getProviderName(routeConfig.rules.background.providerId) }} @ {{ routeConfig.rules.background.model }}</span>
+                </div>
                 
                 <!-- 深度思考模型 -->
-                <ModelDisplayCard
-                  v-if="routeConfig.rules.think"
-                  title="深度思考"
-                  :provider-id="routeConfig.rules.think.providerId"
-                  :model="routeConfig.rules.think.model"
-                  badgeColor="bg-purple-100 text-purple-600"
-                  badgeText="思考"
-                />
+                <div v-if="routeConfig.rules.think" class="flex items-center space-x-3 text-sm">
+                  <div class="w-3 h-3 bg-purple-500 rounded-full flex-shrink-0"></div>
+                  <span class="font-medium text-gray-700 min-w-[80px]">深度思考</span>
+                  <span class="font-mono text-gray-800">{{ getProviderName(routeConfig.rules.think.providerId) }} @ {{ routeConfig.rules.think.model }}</span>
+                </div>
                 
                 <!-- 长上下文模型 -->
-                <ModelDisplayCard
-                  v-if="routeConfig.rules.longContext"
-                  title="长上下文模型"
-                  :provider-id="routeConfig.rules.longContext.providerId"
-                  :model="routeConfig.rules.longContext.model"
-                  badgeColor="bg-yellow-100 text-yellow-600"
-                  :badgeText="`${routeConfig.longContextThreshold || 60000}字符+`"
-                />
+                <div v-if="routeConfig.rules.longContext" class="flex items-center space-x-3 text-sm">
+                  <div class="w-3 h-3 bg-yellow-500 rounded-full flex-shrink-0"></div>
+                  <span class="font-medium text-gray-700 min-w-[80px]">长上下文</span>
+                  <span class="font-mono text-gray-800">{{ getProviderName(routeConfig.rules.longContext.providerId) }} @ {{ routeConfig.rules.longContext.model }}</span>
+                  <span class="text-xs text-gray-500 ml-2">({{ routeConfig.config?.longContextThreshold || 60000 }}字符+)</span>
+                </div>
                 
                 <!-- 网络搜索模型 -->
-                <ModelDisplayCard
-                  v-if="routeConfig.rules.webSearch"
-                  title="网络搜索模型"
-                  :provider-id="routeConfig.rules.webSearch.providerId"
-                  :model="routeConfig.rules.webSearch.model"
-                  badgeColor="bg-orange-100 text-orange-600"
-                  badgeText="搜索"
-                />
+                <div v-if="routeConfig.rules.webSearch" class="flex items-center space-x-3 text-sm">
+                  <div class="w-3 h-3 bg-orange-500 rounded-full flex-shrink-0"></div>
+                  <span class="font-medium text-gray-700 min-w-[80px]">网络搜索</span>
+                  <span class="font-mono text-gray-800">{{ getProviderName(routeConfig.rules.webSearch.providerId) }} @ {{ routeConfig.rules.webSearch.model }}</span>
+                </div>
               </div>
               
-              <!-- 未配置的模型提示 -->
-              <div v-if="getConfiguredModelsCount(routeConfig.rules) < 5" class="text-xs text-gray-500">
-                {{ getUnconfiguredModelsText(routeConfig.rules) }}
+              <!-- 分隔线 -->
+              <div v-if="getUnconfiguredModelsCount(routeConfig.rules) > 0" class="border-t border-dashed border-gray-200"></div>
+              
+              <!-- 未配置的路由提示 -->
+              <div v-if="getUnconfiguredModelsCount(routeConfig.rules) > 0" class="space-y-2">
+                <div class="text-xs font-medium text-gray-500">未配置路由</div>
+                <div class="flex flex-wrap gap-2">
+                  <span v-if="!routeConfig.rules.background" class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-50 text-gray-500 rounded-md text-xs">
+                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                    <span>后台任务</span>
+                  </span>
+                  <span v-if="!routeConfig.rules.think" class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-50 text-gray-500 rounded-md text-xs">
+                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                    <span>深度思考</span>
+                  </span>
+                  <span v-if="!routeConfig.rules.longContext" class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-50 text-gray-500 rounded-md text-xs">
+                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                    <span>长上下文</span>
+                  </span>
+                  <span v-if="!routeConfig.rules.webSearch" class="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-gray-50 text-gray-500 rounded-md text-xs">
+                    <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                    <span>网络搜索</span>
+                  </span>
+                </div>
               </div>
-            </div>
-            
-            <div class="flex items-center space-x-2 text-sm">
-              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              <span class="text-gray-600">创建时间: {{ formatDate(routeConfig.createdAt) }}</span>
             </div>
           </div>
           
           <div class="flex space-x-2">
-            <button @click="toggleRouteConfig(routeConfig.id, !routeConfig.enabled)" 
-                    :class="routeConfig.enabled ? 'text-gray-600 border-gray-200 hover:border-gray-300' : 'text-emerald-600 border-emerald-200 hover:border-emerald-300'"
-                    class="px-4 py-2 rounded-xl border transition duration-200 text-sm">
-              {{ routeConfig.enabled ? '禁用' : '启用' }}
-            </button>
             <button @click="editRouteConfig(routeConfig)" 
                     class="px-4 py-2 text-blue-600 hover:text-blue-700 rounded-xl border border-blue-200 hover:border-blue-300 transition duration-200 text-sm">
               编辑
@@ -186,36 +183,27 @@
       </div>
     </div>
   </div>
+
+  <!-- 确认删除对话框 -->
+  <ConfirmDialog
+    :visible="showConfirmDialog"
+    :title="confirmDialogConfig?.title"
+    :message="confirmDialogConfig?.message"
+    :description="confirmDialogConfig?.description"
+    :type="confirmDialogConfig?.type || 'danger'"
+    :loading="confirmLoading"
+    confirm-text="删除"
+    cancel-text="取消"
+    @confirm="handleConfirmDialogConfirm"
+    @cancel="handleConfirmDialogCancel"
+  />
 </template>
 
 <script setup lang="ts">
 import type { ModelProvider } from '../../../../shared/types/admin/providers'
-import type { RouteMapping } from '../../../../shared/types/admin/routes'
 import { useRouteConfigs } from '../../composables/useRouteConfigs'
-
-// 模型显示卡片子组件
-const ModelDisplayCard = defineComponent({
-  name: 'ModelDisplayCard',
-  props: {
-    title: String,
-    providerId: String,
-    model: String,
-    badgeColor: String,
-    badgeText: String
-  },
-  template: `
-    <div class="bg-gray-50 border border-gray-200 rounded-lg p-2">
-      <div class="flex items-center space-x-2 text-sm mb-1">
-        <span class="font-medium text-gray-700">{{ title }}</span>
-        <span :class="badgeColor" class="px-2 py-1 text-xs rounded-full">{{ badgeText }}</span>
-      </div>
-      <div class="text-xs text-gray-600">
-        <span class="font-mono bg-gray-100 px-1 rounded">{{ providerId }}</span> → 
-        <span class="font-mono bg-gray-100 px-1 rounded">{{ model }}</span>
-      </div>
-    </div>
-  `
-})
+import ConfirmDialog from '../ui/ConfirmDialog.vue'
+import RouteConfigForm from '../RouteConfigForm.vue'
 
 interface Props {
   availableProviders?: ModelProvider[]
@@ -231,19 +219,26 @@ const {
   showAddRouteModal,
   showEditRouteModal,
   editingRoute,
+  showConfirmDialog,
+  confirmDialogConfig,
+  confirmLoading,
   addRouteConfig,
   editRouteConfig,
   updateRouteConfig,
   deleteRouteConfig,
-  toggleRouteConfig,
-  getRuleTypeDisplay,
-  formatRuleConditions,
-  formatDate
+  formatDate,
+  handleConfirmDialogCancel,
+  handleConfirmDialogConfirm
 } = useRouteConfigs()
 
 // 工具方法
+const getProviderName = (providerId: string) => {
+  const provider = props.availableProviders.find(p => p.id === providerId)
+  return provider?.name || providerId
+}
+
 const getConfiguredModelsCount = (rules: any) => {
-  if (!rules) return 0
+  if (!rules) return 1 // 默认模型总是存在
   let count = 1 // 默认模型总是存在
   if (rules.background) count++
   if (rules.think) count++
@@ -252,15 +247,13 @@ const getConfiguredModelsCount = (rules: any) => {
   return count
 }
 
-const getUnconfiguredModelsText = (rules: any) => {
-  if (!rules) return '所有可选模型'
-  const unconfigured = []
-  if (!rules.background) unconfigured.push('后台任务')
-  if (!rules.think) unconfigured.push('深度思考')
-  if (!rules.longContext) unconfigured.push('长上下文')
-  if (!rules.webSearch) unconfigured.push('网络搜索')
-  
-  if (unconfigured.length === 0) return ''
-  return `未配置: ${unconfigured.join('、')}`
+const getUnconfiguredModelsCount = (rules: any) => {
+  if (!rules) return 4 // 除了默认模型外的可选模型数量
+  let count = 0
+  if (!rules.background) count++
+  if (!rules.think) count++
+  if (!rules.longContext) count++
+  if (!rules.webSearch) count++
+  return count
 }
 </script>

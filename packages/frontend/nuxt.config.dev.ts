@@ -1,7 +1,5 @@
-import baseConfig from './nuxt.config'
-
+// 开发环境独立配置 - 不继承生产配置避免冲突
 export default defineNuxtConfig({
-  ...baseConfig,
   // 开发模式特定优化
   compatibilityDate: '2025-07-27',
   
@@ -33,15 +31,18 @@ export default defineNuxtConfig({
     },
     // 开发服务器优化
     server: {
-      // 更快的热重载
+      // WSL 环境下的热重载优化
       hmr: {
-        overlay: false,  // 禁用错误覆盖层，减少干扰
-        port: 24678     // 固定 HMR 端口
+        protocol: 'ws',
+        host: '0.0.0.0',   // WSL2 需要监听所有接口
+        port: 24678,       // 固定 HMR 端口
+        clientPort: 24678  // 客户端连接端口
       },
-      // 文件监听优化（如果需要可以启用）
+      // WSL 环境下文件监听优化
       watch: {
-        usePolling: false,  // 默认不使用轮询
-        ignored: ['**/node_modules/**', '**/.git/**']
+        usePolling: true,   // WSL 环境需要使用轮询
+        interval: 500,      // 降低轮询间隔到 500ms，更快响应
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.nuxt/**']
       }
     },
     // 开发构建优化
@@ -63,7 +64,7 @@ export default defineNuxtConfig({
     preset: 'node-server',
     // 开发模式
     dev: true,
-    // 开发服务器配置
+    // 开发服务器配置 - WSL 优化
     devServer: {
       watch: ['./']
     },

@@ -38,7 +38,6 @@ export interface RouteConfig {
   description?: string
   rules: RouteRules                // 路由规则
   config?: RouteConfigOptions      // 配置选项
-  status: 'active' | 'inactive'    // 状态
   createdAt: string                // ISO 8601 时间字符串
   updatedAt: string                // ISO 8601 时间字符串
 }
@@ -61,5 +60,4 @@ export interface EditRouteConfigRequest {
   description?: string
   rules?: RouteRules
   config?: RouteConfigOptions
-  status?: 'active' | 'inactive'
 }

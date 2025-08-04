@@ -29,7 +29,7 @@
                 <h4 class="text-lg font-bold text-gray-900">{{ provider.name }}</h4>
                 <p class="text-sm text-gray-500">
                   <span v-if="provider.type === 'openai'">OpenAI 兼容模型</span>
-                  <span v-else-if="provider.type === 'google'">Google Gemini 模型</span>
+                  <span v-else-if="provider.type === 'gemini'">Google Gemini 模型</span>
                   <span v-else>{{ provider.type }} 模型</span>
                 </p>
               </div>
@@ -90,7 +90,7 @@
             
             <div class="flex items-center space-x-2 text-sm">
               <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
               </svg>
               <span class="text-gray-600">密钥池: {{ keyPoolStatuses.get(provider.id) || '加载中...' }}</span>
             </div>
@@ -108,7 +108,7 @@
             <NuxtLink :to="`/admin/key-pool/${provider.id}`" 
                     class="px-4 py-2 text-emerald-600 hover:text-emerald-700 rounded-xl border border-emerald-200 hover:border-emerald-300 transition duration-200 text-sm inline-flex items-center">
               <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
               </svg>
               密钥池
             </NuxtLink>
@@ -151,10 +151,25 @@
       </div>
     </div>
   </div>
+
+  <!-- 确认删除对话框 -->
+  <ConfirmDialog
+    :visible="showConfirmDialog"
+    :title="confirmDialogConfig?.title"
+    :message="confirmDialogConfig?.message"
+    :description="confirmDialogConfig?.description"
+    :type="confirmDialogConfig?.type || 'danger'"
+    :loading="confirmLoading"
+    confirm-text="删除"
+    cancel-text="取消"
+    @confirm="handleConfirmDialogConfirm"
+    @cancel="handleConfirmDialogCancel"
+  />
 </template>
 
 <script setup lang="ts">
 import { useProviders } from '../../composables/useProviders'
+import ConfirmDialog from '../ui/ConfirmDialog.vue'
 
 // 使用 composable 来管理供应商相关逻辑
 const {
@@ -164,10 +179,15 @@ const {
   showEditModal,
   editingProvider,
   editLoading,
+  showConfirmDialog,
+  confirmDialogConfig,
+  confirmLoading,
   editProvider,
   updateProvider,
   cancelEdit,
   deleteProvider,
-  toggleProviderExpansion
+  toggleProviderExpansion,
+  handleConfirmDialogCancel,
+  handleConfirmDialogConfirm
 } = useProviders()
 </script>

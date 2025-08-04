@@ -34,6 +34,7 @@ const port = process.env.PORT || 8787
 console.log(`🚀 Claude Relay 后端 (Bun) 运行在 http://localhost:${port}`)
 console.log(`💾 使用本地 KV 存储：.kv-storage/`)
 console.log(`🔐 管理员凭据：${process.env.ADMIN_USERNAME || 'admin'} / ${process.env.ADMIN_PASSWORD || 'password123'}`)
+console.log(`🔥 热重载已启用 - 代码变更时自动重启`)
 
 export default {
   port,

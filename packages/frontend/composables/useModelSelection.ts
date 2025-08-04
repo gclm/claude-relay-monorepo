@@ -3,13 +3,14 @@ import type { RouteConfig } from '../../../shared/types/admin/routes'
 import type { SelectedModel, SelectModelRequest } from '../../../shared/types/admin/models'
 import { API_ENDPOINTS } from '../../../shared/constants/endpoints'
 
+// 全局状态 - 确保在所有组件间共享
+const currentModelMode = ref<'claude' | 'route'>('claude')
+const selectedRouteConfigId = ref<string>('')
+const availableRouteConfigs = ref<RouteConfig[]>([])
+const isInitialized = ref(false)
+
 export const useModelSelection = () => {
   const config = useRuntimeConfig()
-  
-  // 响应式数据
-  const currentModelMode = ref<'claude' | 'route'>('claude')
-  const selectedRouteConfigId = ref<string>('')
-  const availableRouteConfigs = ref<RouteConfig[]>([])
 
   // 通知函数
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -57,14 +58,14 @@ export const useModelSelection = () => {
         { baseURL: config.public.apiBaseUrl }
       )
       if (response.success) {
-        availableRouteConfigs.value = response.data.filter(config => config.enabled)
+        availableRouteConfigs.value = response.data
       }
     } catch (error) {
       console.error('Failed to load route configs:', error)
     }
   }
 
-  const selectModelMode = async (mode: 'claude' | 'route') => {
+  const selectModelMode = async (mode: 'claude' | 'route', onSuccess?: () => void) => {
     try {
       const request: SelectModelRequest = { type: mode }
       if (mode === 'route' && selectedRouteConfigId.value) {
@@ -83,6 +84,10 @@ export const useModelSelection = () => {
       if (response.success) {
         currentModelMode.value = mode
         showNotification(`已切换到: ${mode === 'claude' ? 'Claude 官方模型' : '智能路由模式'}`, 'success')
+        // 调用成功回调
+        if (onSuccess) {
+          onSuccess()
+        }
       }
     } catch (error) {
       console.error('Failed to select model mode:', error)
@@ -90,7 +95,7 @@ export const useModelSelection = () => {
     }
   }
 
-  const updateRouteSelection = async () => {
+  const updateRouteSelection = async (onSuccess?: () => void) => {
     if (currentModelMode.value === 'route' && selectedRouteConfigId.value) {
       try {
         const response = await $fetch<{ success: boolean; data: SelectedModel }>(
@@ -108,6 +113,10 @@ export const useModelSelection = () => {
         if (response.success) {
           const selectedConfig = availableRouteConfigs.value.find(c => c.id === selectedRouteConfigId.value)
           showNotification(`已切换到路由配置: ${selectedConfig?.name}`, 'success')
+          // 调用成功回调
+          if (onSuccess) {
+            onSuccess()
+          }
         }
       } catch (error) {
         console.error('Failed to update route selection:', error)
@@ -116,9 +125,12 @@ export const useModelSelection = () => {
     }
   }
 
-  // 初始化时加载数据
-  loadCurrentModelSelection()
-  loadAvailableRouteConfigs()
+  // 只在第一次使用时初始化，避免重复加载覆盖用户选择
+  if (!isInitialized.value) {
+    isInitialized.value = true
+    loadCurrentModelSelection()
+    loadAvailableRouteConfigs()
+  }
 
   return {
     // 响应式数据

@@ -15,6 +15,17 @@ export const useProviders = () => {
   const showEditModal = ref(false)
   const editingProvider = ref<ModelProvider | null>(null)
   const editLoading = ref(false)
+  
+  // 确认对话框状态
+  const showConfirmDialog = ref(false)
+  const confirmDialogConfig = ref<{
+    title: string
+    message: string
+    description?: string
+    type: 'danger' | 'warning' | 'info'
+    onConfirm: () => void
+  } | null>(null)
+  const confirmLoading = ref(false)
 
   // 通知函数
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -108,24 +119,53 @@ export const useProviders = () => {
   }
 
   const deleteProvider = async (id: string) => {
-    if (!confirm('确定要删除这个供应商吗？')) return
+    const provider = providers.value.find(p => p.id === id)
+    if (!provider) return
     
-    try {
-      const response = await $fetch<{ success: boolean }>(
-        `${API_ENDPOINTS.ADMIN_PROVIDERS}/${id}`,
-        {
-          method: 'DELETE',
-          baseURL: config.public.apiBaseUrl
+    confirmDialogConfig.value = {
+      title: '删除供应商',
+      message: `确定要删除供应商"${provider.name}"吗？`,
+      description: '删除后将无法恢复，该供应商的所有配置和密钥池数据也将被清除。',
+      type: 'danger',
+      onConfirm: async () => {
+        confirmLoading.value = true
+        
+        try {
+          const response = await $fetch<{ success: boolean }>(
+            `${API_ENDPOINTS.ADMIN_PROVIDERS}/${id}`,
+            {
+              method: 'DELETE',
+              baseURL: config.public.apiBaseUrl
+            }
+          )
+          
+          if (response.success) {
+            await loadProviders()
+            showNotification('删除供应商成功', 'success')
+            showConfirmDialog.value = false
+          }
+        } catch (error) {
+          console.error('Failed to delete provider:', error)
+          showNotification('删除供应商失败', 'error')
+        } finally {
+          confirmLoading.value = false
         }
-      )
-      
-      if (response.success) {
-        await loadProviders()
-        showNotification('删除供应商成功', 'success')
       }
-    } catch (error) {
-      console.error('Failed to delete provider:', error)
-      showNotification('删除供应商失败', 'error')
+    }
+    
+    showConfirmDialog.value = true
+  }
+  
+  // 确认对话框方法
+  const handleConfirmDialogCancel = () => {
+    showConfirmDialog.value = false
+    confirmDialogConfig.value = null
+    confirmLoading.value = false
+  }
+  
+  const handleConfirmDialogConfirm = () => {
+    if (confirmDialogConfig.value?.onConfirm) {
+      confirmDialogConfig.value.onConfirm()
     }
   }
 
@@ -150,6 +190,11 @@ export const useProviders = () => {
     editingProvider,
     editLoading,
     
+    // 确认对话框状态
+    showConfirmDialog,
+    confirmDialogConfig,
+    confirmLoading,
+    
     // 方法
     loadProviders,
     loadKeyPoolStatuses,
@@ -157,6 +202,8 @@ export const useProviders = () => {
     updateProvider,
     cancelEdit,
     deleteProvider,
-    toggleProviderExpansion
+    toggleProviderExpansion,
+    handleConfirmDialogCancel,
+    handleConfirmDialogConfirm
   }
 }

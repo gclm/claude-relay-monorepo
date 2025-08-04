@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, provide } from 'vue'
 import type { DashboardData } from '../../../../shared/types/admin/dashboard'
 import type { ModelProvider } from '../../../../shared/types/admin/providers'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
@@ -200,4 +200,12 @@ const logout = async () => {
   sessionStorage.removeItem('admin_username')
   await router.push('/admin')
 }
+
+// 提供刷新 dashboard 数据的方法给子组件
+const refreshDashboard = async () => {
+  await loadDashboardData()
+}
+
+// 通过 provide/inject 向子组件提供刷新方法
+provide('refreshDashboard', refreshDashboard)
 </script>

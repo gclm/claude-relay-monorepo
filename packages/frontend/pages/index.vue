@@ -20,7 +20,7 @@
           </h2>
           <p class="mt-3 text-gray-600 text-sm leading-relaxed">
             统一管理您的 Claude Code 账号和模型供应商<br>
-            让 AI 开发更简单、更高效
+            让 AI 开发更简单、更高效 🚀 WSL 热重载已修复
           </p>
         </div>
 
