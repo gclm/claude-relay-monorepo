@@ -2,7 +2,6 @@
  * 响应工具函数 - 最简实现
  */
 
-import { ErrorType, ERROR_MESSAGES, ERROR_STATUS_CODES } from '../../../../shared/constants/errors'
 
 // 标准 JSON 响应
 export function createJsonResponse(data: any, status = 200) {
@@ -29,17 +28,13 @@ export function createSuccessResponse(data: any, message?: string) {
 
 // 错误响应
 export function createErrorResponse(
-  errorType: ErrorType, 
-  customMessage?: string,
+  message: string,
+  status: number,
   details?: any
 ) {
-  const status = ERROR_STATUS_CODES[errorType]
-  const message = customMessage || ERROR_MESSAGES[errorType]
-  
   return createJsonResponse({
     success: false,
     error: {
-      type: errorType,
       message,
       details
     },

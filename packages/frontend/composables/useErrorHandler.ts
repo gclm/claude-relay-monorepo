@@ -1,13 +1,11 @@
 /**
- * 统一错误处理 Composable
+ * 统一错误处理 Composable - 简化版
  * 提供全局的错误处理、展示和管理功能
  */
 
 import { ref } from 'vue'
-import { ERROR_TYPES, ERROR_MESSAGES, type ErrorType } from '../../../shared/constants/errors'
 
 export interface AppError {
-  type: ErrorType
   message: string
   details?: any
   timestamp: string
@@ -16,7 +14,6 @@ export interface AppError {
 export interface ApiErrorResponse {
   success: false
   error: {
-    type: string
     message: string
     details?: any
   }
@@ -34,9 +31,8 @@ export const useErrorHandler = () => {
    */
   const parseApiError = (err: any): AppError => {
     // 1. 标准 API 错误响应格式
-    if (err?.data?.error) {
+    if (err?.data?.error?.message) {
       return {
-        type: err.data.error.type as ErrorType,
         message: err.data.error.message,
         details: err.data.error.details,
         timestamp: err.data.timestamp || new Date().toISOString()
@@ -46,7 +42,6 @@ export const useErrorHandler = () => {
     // 2. Nuxt $fetch 错误
     if (err?.data && typeof err.data === 'object') {
       return {
-        type: ERROR_TYPES.INTERNAL_ERROR,
         message: err.data.message || err.message || '请求失败',
         details: err.data,
         timestamp: new Date().toISOString()
@@ -56,7 +51,6 @@ export const useErrorHandler = () => {
     // 3. 网络错误或其他错误
     if (err?.message) {
       return {
-        type: ERROR_TYPES.PROXY_ERROR,
         message: err.message,
         timestamp: new Date().toISOString()
       }
@@ -65,7 +59,6 @@ export const useErrorHandler = () => {
     // 4. 字符串错误
     if (typeof err === 'string') {
       return {
-        type: ERROR_TYPES.INTERNAL_ERROR,
         message: err,
         timestamp: new Date().toISOString()
       }
@@ -73,7 +66,6 @@ export const useErrorHandler = () => {
     
     // 5. 未知错误
     return {
-      type: ERROR_TYPES.INTERNAL_ERROR,
       message: '发生未知错误，请重试',
       details: err,
       timestamp: new Date().toISOString()
@@ -122,21 +114,30 @@ export const useErrorHandler = () => {
   }
 
   /**
-   * 获取用户友好的错误消息
+   * 获取用户友好的错误消息（基于 HTTP 状态码）
    */
-  const getFriendlyMessage = (errorType: ErrorType): string => {
-    // 使用项目中定义的错误消息，如果没有则使用友好消息
-    const friendlyMessages: Record<ErrorType, string> = {
-      [ERROR_TYPES.INVALID_REQUEST]: '请求参数有误，请检查输入',
-      [ERROR_TYPES.UNAUTHORIZED]: '未授权访问，请重新登录',
-      [ERROR_TYPES.TOKEN_EXPIRED]: '登录已过期，请重新登录',
-      [ERROR_TYPES.TOKEN_EXCHANGE_FAILED]: '认证失败，请重新登录',
-      [ERROR_TYPES.RESOURCE_NOT_FOUND]: '请求的资源不存在',
-      [ERROR_TYPES.INTERNAL_ERROR]: '服务器内部错误，请联系管理员',
-      [ERROR_TYPES.PROXY_ERROR]: '代理服务错误，请稍后重试'
+  const getFriendlyMessage = (error: AppError): string => {
+    // 直接使用错误消息，或根据常见错误模式提供友好提示
+    const message = error.message.toLowerCase()
+    
+    if (message.includes('unauthorized') || message.includes('未授权') || message.includes('登录')) {
+      return '未授权访问，请重新登录'
     }
     
-    return friendlyMessages[errorType] || ERROR_MESSAGES[errorType] || '未知错误'
+    if (message.includes('not found') || message.includes('不存在')) {
+      return '请求的资源不存在'
+    }
+    
+    if (message.includes('invalid') || message.includes('无效') || message.includes('参数')) {
+      return '请求参数有误，请检查输入'
+    }
+    
+    if (message.includes('network') || message.includes('网络') || message.includes('连接')) {
+      return '网络连接异常，请检查网络后重试'
+    }
+    
+    // 默认返回原始错误消息
+    return error.message
   }
 
   /**

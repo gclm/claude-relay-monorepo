@@ -1,13 +1,13 @@
 /**
- * 自定义异常类
+ * 自定义异常类 - 简化版
  */
 
-import { ErrorType } from '../../../../shared/constants/errors'
+import type { ContentfulStatusCode } from 'hono/utils/http-status'
 
 export class AppError extends Error {
   constructor(
-    public errorType: ErrorType,
-    message?: string,
+    message: string,
+    public status: ContentfulStatusCode = 500,
     public originalError?: Error
   ) {
     super(message)
@@ -17,31 +17,30 @@ export class AppError extends Error {
 
 export class AuthError extends AppError {
   constructor(message: string, originalError?: Error) {
-    super('TOKEN_EXCHANGE_FAILED', message, originalError)
+    super(message, 401, originalError)
   }
 }
 
 export class ValidationError extends AppError {
   constructor(message: string) {
-    super('INVALID_REQUEST', message)
+    super(message, 400)
   }
 }
 
-
 export class TokenExpiredError extends AppError {
   constructor(message: string) {
-    super('TOKEN_EXPIRED', message)
+    super(message, 401)
   }
 }
 
 export class ProxyError extends AppError {
   constructor(message: string, originalError?: Error) {
-    super('PROXY_ERROR', message, originalError)
+    super(message, 502, originalError)
   }
 }
 
 export class ResourceNotFoundError extends AppError {
   constructor(message: string) {
-    super('RESOURCE_NOT_FOUND', message)
+    super(message, 404)
   }
 }

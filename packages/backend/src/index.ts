@@ -5,7 +5,6 @@ import { adminRoutes } from './routes/admin/index'
 import { claudeRoutes } from './routes/proxy'
 import { kvValidator } from './middleware/kv-validator'
 import { ClaudeAccountService } from './services/admin/index'
-import { ERROR_TYPES, ERROR_STATUS_CODES } from '../../../shared/constants/errors'
 import { AppError } from './utils/errors'
 import type { Bindings } from './types/env'
 
@@ -58,31 +57,24 @@ app.onError((err, c) => {
   
   // 1. 处理自定义业务异常 (优先级最高)
   if (err instanceof AppError) {
-    const status = ERROR_STATUS_CODES[err.errorType] || 500
-    
     return c.json({
       success: false,
       error: {
-        type: err.errorType,
         message: err.message
       },
       timestamp: new Date().toISOString()
-    }, status)
+    }, err.status || 500)
   }
   
   // 2. 处理 HTTPException (HTTP协议层错误)
   if (err instanceof HTTPException) {
-    const status = err.status
-    const errorType = getErrorTypeFromStatus(status)
-    
     return c.json({
       success: false,
       error: {
-        type: errorType,
         message: err.message
       },
       timestamp: new Date().toISOString()
-    }, status)
+    }, err.status)
   }
   
   // 3. 处理特定的原生异常
@@ -90,7 +82,6 @@ app.onError((err, c) => {
     return c.json({
       success: false,
       error: {
-        type: ERROR_TYPES.INVALID_REQUEST,
         message: 'Invalid JSON request body'
       },
       timestamp: new Date().toISOString()
@@ -103,7 +94,6 @@ app.onError((err, c) => {
   return c.json({
     success: false,
     error: {
-      type: ERROR_TYPES.INTERNAL_ERROR,
       message: isDev ? err.message : 'An unexpected error occurred',
       ...(isDev && { stack: err.stack })
     },
@@ -111,25 +101,11 @@ app.onError((err, c) => {
   }, 500)
 })
 
-// 根据 HTTP 状态码获取错误类型
-function getErrorTypeFromStatus(status: number): string {
-  const statusToErrorType: Record<number, string> = {
-    400: ERROR_TYPES.INVALID_REQUEST,
-    401: ERROR_TYPES.UNAUTHORIZED,
-    404: ERROR_TYPES.RESOURCE_NOT_FOUND,
-    500: ERROR_TYPES.INTERNAL_ERROR,
-    502: ERROR_TYPES.PROXY_ERROR
-  }
-  
-  return statusToErrorType[status] || ERROR_TYPES.INTERNAL_ERROR
-}
-
 // 404 处理
 app.notFound((c) => {
   return c.json({
     success: false,
     error: {
-      type: ERROR_TYPES.RESOURCE_NOT_FOUND,
       message: 'The requested endpoint does not exist'
     },
     timestamp: new Date().toISOString()

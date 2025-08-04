@@ -6,7 +6,6 @@ import { Hono } from 'hono'
 import type { Bindings } from '../../types/env'
 import { RouteConfigService } from '../../services/admin/route-configs'
 import { createSuccessResponse, createErrorResponse } from '../../utils/response'
-import { ERROR_TYPES } from '../../../../../shared/constants/errors'
 import type { AddRouteConfigRequest, EditRouteConfigRequest } from '../../../../../shared/types/admin/routes'
 
 const routeConfigRoutes = new Hono<{ Bindings: Bindings }>()
@@ -19,7 +18,7 @@ routeConfigRoutes.get('/route-configs', async (c) => {
     return createSuccessResponse(configs, '获取路由配置成功')
   } catch (err) {
     console.error('Failed to get route configs:', err)
-    return createErrorResponse(ERROR_TYPES.INTERNAL_ERROR, '获取路由配置失败')
+    return createErrorResponse('获取路由配置失败', 500)
   }
 })
 
@@ -30,7 +29,7 @@ routeConfigRoutes.post('/route-configs', async (c) => {
     
     // 基本验证
     if (!request.name || !request.rules?.default) {
-      return createErrorResponse(ERROR_TYPES.INVALID_REQUEST, '配置名称和默认规则为必填项')
+      return createErrorResponse('配置名称和默认规则为必填项', 400)
     }
     
     const service = new RouteConfigService(c.env.CLAUDE_RELAY_ADMIN_KV)
@@ -38,7 +37,7 @@ routeConfigRoutes.post('/route-configs', async (c) => {
     return createSuccessResponse(config, '创建路由配置成功')
   } catch (err) {
     console.error('Failed to create route config:', err)
-    return createErrorResponse(ERROR_TYPES.INTERNAL_ERROR, '创建路由配置失败')
+    return createErrorResponse('创建路由配置失败', 500)
   }
 })
 
@@ -52,13 +51,13 @@ routeConfigRoutes.put('/route-configs/:id', async (c) => {
     const config = await service.updateConfig(id, request)
     
     if (!config) {
-      return createErrorResponse(ERROR_TYPES.RESOURCE_NOT_FOUND, '路由配置不存在')
+      return createErrorResponse('路由配置不存在', 404)
     }
     
     return createSuccessResponse(config, '更新路由配置成功')
   } catch (err) {
     console.error('Failed to update route config:', err)
-    return createErrorResponse(ERROR_TYPES.INTERNAL_ERROR, '更新路由配置失败')
+    return createErrorResponse('更新路由配置失败', 500)
   }
 })
 
@@ -73,7 +72,7 @@ routeConfigRoutes.delete('/route-configs/:id', async (c) => {
     return createSuccessResponse(null, '删除路由配置成功')
   } catch (err) {
     console.error('Failed to delete route config:', err)
-    return createErrorResponse(ERROR_TYPES.INTERNAL_ERROR, '删除路由配置失败')
+    return createErrorResponse('删除路由配置失败', 500)
   }
 })
 
