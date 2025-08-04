@@ -33,3 +33,15 @@ export class TokenExpiredError extends AppError {
     super('TOKEN_EXPIRED', message)
   }
 }
+
+export class ProxyError extends AppError {
+  constructor(message: string, originalError?: Error) {
+    super('PROXY_ERROR', message, originalError)
+  }
+}
+
+export class ResourceNotFoundError extends AppError {
+  constructor(message: string) {
+    super('RESOURCE_NOT_FOUND', message)
+  }
+}

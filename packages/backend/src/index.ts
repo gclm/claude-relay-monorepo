@@ -5,7 +5,8 @@ import { adminRoutes } from './routes/admin/index'
 import { claudeRoutes } from './routes/proxy'
 import { kvValidator } from './middleware/kv-validator'
 import { ClaudeAccountService } from './services/admin/index'
-import { ERROR_TYPES } from '../../../shared/constants/errors'
+import { ERROR_TYPES, ERROR_STATUS_CODES } from '../../../shared/constants/errors'
+import { AppError } from './utils/errors'
 import type { Bindings } from './types/env'
 
 // ==================== 应用初始化 ====================
@@ -43,13 +44,35 @@ app.route('/v1', claudeRoutes)
 // ==================== 错误处理 ====================
 // 统一错误处理
 app.onError((err, c) => {
-  console.error(`Error in ${c.req.method} ${c.req.path}:`, err)
+  // 增强的错误日志记录
+  const errorContext = {
+    method: c.req.method,
+    path: c.req.path,
+    userAgent: c.req.header('User-Agent'),
+    timestamp: new Date().toISOString(),
+    errorType: err.constructor.name
+  }
   
-  // 处理 HTTPException
+  console.error('=== 应用错误 ===', errorContext)
+  console.error('错误详情:', err)
+  
+  // 1. 处理自定义业务异常 (优先级最高)
+  if (err instanceof AppError) {
+    const status = ERROR_STATUS_CODES[err.errorType] || 500
+    
+    return c.json({
+      success: false,
+      error: {
+        type: err.errorType,
+        message: err.message
+      },
+      timestamp: new Date().toISOString()
+    }, status)
+  }
+  
+  // 2. 处理 HTTPException (HTTP协议层错误)
   if (err instanceof HTTPException) {
     const status = err.status
-    
-    // 根据状态码映射到错误类型
     const errorType = getErrorTypeFromStatus(status)
     
     return c.json({
@@ -62,7 +85,19 @@ app.onError((err, c) => {
     }, status)
   }
   
-  // 处理其他错误
+  // 3. 处理特定的原生异常
+  if (err instanceof SyntaxError) {
+    return c.json({
+      success: false,
+      error: {
+        type: ERROR_TYPES.INVALID_REQUEST,
+        message: 'Invalid JSON request body'
+      },
+      timestamp: new Date().toISOString()
+    }, 400)
+  }
+  
+  // 4. 处理未知错误
   const isDev = c.env.NODE_ENV === 'development'
   
   return c.json({
@@ -82,7 +117,8 @@ function getErrorTypeFromStatus(status: number): string {
     400: ERROR_TYPES.INVALID_REQUEST,
     401: ERROR_TYPES.UNAUTHORIZED,
     404: ERROR_TYPES.RESOURCE_NOT_FOUND,
-    500: ERROR_TYPES.INTERNAL_ERROR
+    500: ERROR_TYPES.INTERNAL_ERROR,
+    502: ERROR_TYPES.PROXY_ERROR
   }
   
   return statusToErrorType[status] || ERROR_TYPES.INTERNAL_ERROR
