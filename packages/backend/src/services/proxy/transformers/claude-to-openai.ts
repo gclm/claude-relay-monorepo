@@ -4,7 +4,7 @@
  */
 
 import { AbstractTransformer } from './base-transformer'
-import type { ClaudeRequest, ClaudeResponse } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase, Message, StopReason, Usage } from '@anthropic-ai/sdk/resources/messages'
 
 // 完成原因映射
 const FINISH_REASON_MAPPING: Record<string, string> = {
@@ -19,7 +19,7 @@ export class ClaudeToOpenAITransformer extends AbstractTransformer {
   /**
    * 转换 Claude 请求为 OpenAI 格式
    */
-  transformRequest(claudeRequest: ClaudeRequest): Record<string, any> {
+  transformRequest(claudeRequest: MessageCreateParamsBase): Record<string, any> {
     const messages: any[] = []
 
     // 处理系统消息
@@ -53,7 +53,7 @@ export class ClaudeToOpenAITransformer extends AbstractTransformer {
   /**
    * 转换响应格式
    */
-  async transformResponse(openaiResponse: Record<string, any>, isStream: boolean): Promise<ClaudeResponse | ReadableStream> {
+  async transformResponse(openaiResponse: Record<string, any>, isStream: boolean): Promise<Message | ReadableStream> {
     if (isStream) {
       // 对于流式响应，openaiResponse 应该是 ReadableStream
       return this.transformStreamResponse(openaiResponse as unknown as ReadableStream)
@@ -141,7 +141,7 @@ export class ClaudeToOpenAITransformer extends AbstractTransformer {
   /**
    * 转换非流式响应
    */
-  private transformNormalResponse(openaiResponse: Record<string, any>): ClaudeResponse {
+  private transformNormalResponse(openaiResponse: Record<string, any>): Message {
     if (!openaiResponse.choices || openaiResponse.choices.length === 0) {
       throw new Error('Invalid OpenAI response: no choices found')
     }
@@ -180,7 +180,11 @@ export class ClaudeToOpenAITransformer extends AbstractTransformer {
       usage: {
         input_tokens: openaiResponse.usage?.prompt_tokens || 0,
         output_tokens: openaiResponse.usage?.completion_tokens || 0,
-      }
+        cache_creation_input_tokens: null,
+        cache_read_input_tokens: null,
+        server_tool_use: null,
+        service_tier: null
+      } as Usage
     }
   }
 
@@ -350,9 +354,9 @@ export class ClaudeToOpenAITransformer extends AbstractTransformer {
   /**
    * 映射完成原因
    */
-  private mapFinishReason(reason: string | null): string {
+  private mapFinishReason(reason: string | null): StopReason {
     if (!reason) return 'end_turn'
-    return FINISH_REASON_MAPPING[reason] || 'end_turn'
+    return (FINISH_REASON_MAPPING[reason] || 'end_turn') as StopReason
   }
 
   /**

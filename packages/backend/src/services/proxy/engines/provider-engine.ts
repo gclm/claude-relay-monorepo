@@ -3,7 +3,7 @@
  */
 
 import type { Engine, RequestContext } from './types'
-import type { ClaudeRequest } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import { ProviderResolver } from './provider-resolver'
 import { RequestExecutor } from './request-executor'
 import { ResponseHandler } from './response-handler'
@@ -21,7 +21,7 @@ export class ProviderEngine implements Engine {
     this.responseHandler = new ResponseHandler()
   }
   
-  async processRequest(request: ClaudeRequest): Promise<Response> {
+  async processRequest(request: MessageCreateParamsBase): Promise<Response> {
     const context: RequestContext = {
       originalRequest: request,
       requestId: crypto.randomUUID(),

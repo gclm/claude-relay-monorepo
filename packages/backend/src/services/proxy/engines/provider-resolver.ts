@@ -3,7 +3,7 @@
  * 负责加载路由配置、选择模型、加载供应商、获取 API Key 和转换器
  */
 
-import type { ClaudeRequest } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import type { ProviderResolution } from './types'
 import { RouteConfigRepository, ProviderRepository } from '../../../repositories'
 import { ModelRouterService } from './model-router'
@@ -26,7 +26,7 @@ export class ProviderResolver {
   /**
    * 解析请求，返回所有必要的 Provider 相关资源
    */
-  async resolve(request: ClaudeRequest): Promise<ProviderResolution> {
+  async resolve(request: MessageCreateParamsBase): Promise<ProviderResolution> {
     // 1. 加载路由配置
     const routeConfig = await this.routeConfigRepo.getActiveRouteConfig()
     if (!routeConfig) {

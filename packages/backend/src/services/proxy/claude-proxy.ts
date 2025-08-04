@@ -2,7 +2,7 @@
  * Claude API 代理服务 - Engine 架构版本
  */
 
-import type { ClaudeRequest } from '../../types/proxy/claude'
+import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import type { SelectedConfig } from './engines/types'
 import { ClaudeEngine, ProviderEngine } from './engines'
 import { RouteConfigRepository } from '../../repositories'
@@ -24,7 +24,7 @@ export class ClaudeProxyService {
    */
   async proxyRequest(request: Request): Promise<Response> {
     // 解析请求
-    const claudeRequest = await request.json() as ClaudeRequest
+    const claudeRequest = await request.json() as MessageCreateParamsBase
     
     // 获取选择的配置
     const selectedConfig = await this.routeConfigRepo.getSelectedConfig()

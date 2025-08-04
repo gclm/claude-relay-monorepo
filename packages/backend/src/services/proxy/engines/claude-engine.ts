@@ -3,7 +3,7 @@
  */
 
 import type { Engine } from './types'
-import type { ClaudeRequest } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import type { ClaudeToken } from '../../../types/proxy'
 import { HTTPException } from 'hono/http-exception'
 import { TokenExpiredError } from '../../../utils/errors'
@@ -11,7 +11,7 @@ import { TokenExpiredError } from '../../../utils/errors'
 export class ClaudeEngine implements Engine {
   constructor(private kv: KVNamespace) {}
   
-  async processRequest(request: ClaudeRequest): Promise<Response> {
+  async processRequest(request: MessageCreateParamsBase): Promise<Response> {
     // 1. 获取 token
     const token = await this.getValidToken()
     if (!token) {
@@ -62,7 +62,7 @@ export class ClaudeEngine implements Engine {
   }
   
   private async getValidToken(): Promise<ClaudeToken | null> {
-    // 获取所有 Claude 账号
+    // 获取所�?Claude 账号
     const accountIdsData = await this.kv.get('claude_account_ids')
     if (!accountIdsData) return null
     
@@ -75,7 +75,7 @@ export class ClaudeEngine implements Engine {
       
       const token: ClaudeToken = JSON.parse(tokenData)
       
-      // 检查 token 是否过期
+      // 检�?token 是否过期
       if (Date.now() > token.expires_at) {
         console.log(`Claude account ${accountId} token expired`)
         continue

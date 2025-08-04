@@ -24,17 +24,23 @@ export class RequestExecutor {
       model: selectedModel
     }
     
+    console.log('📥 转换前的请求 (Claude 格式):', JSON.stringify(updatedRequest, null, 2))
+    
     const transformedRequest = transformer.transformRequest(updatedRequest)
     
     // 特殊处理：非 Gemini 供应商需要设置模型
+    // Gemini 的模型在 URL 中指定，OpenAI 兼容的 API 需要在请求体中指定
     const isGemini = transformer.constructor.name === 'ClaudeToGeminiTransformer'
     if (!isGemini) {
-      transformedRequest.model = provider.model
+      transformedRequest.model = selectedModel
     }
+    
+    console.log('📤 转换后的请求 (Provider 格式):', JSON.stringify(transformedRequest, null, 2))
+    
     context.transformedRequest = transformedRequest
     
     // 2. 构建 HTTP 请求
-    const url = this.buildRequestUrl(provider, apiKey.key, originalRequest.stream)
+    const url = this.buildRequestUrl(provider, selectedModel, apiKey.key, originalRequest.stream)
     const headers = this.buildRequestHeaders(provider, apiKey.key)
     
     // 3. 发送请求
@@ -44,14 +50,14 @@ export class RequestExecutor {
   /**
    * 构建请求 URL
    */
-  private buildRequestUrl(provider: ModelProvider, apiKey: string, isStream?: boolean): string {
+  private buildRequestUrl(provider: ModelProvider, selectedModel: string, apiKey: string, isStream?: boolean): string {
     const isGemini = provider.transformer === 'claude-to-gemini'
     
     let url = provider.endpoint
     
     if (isGemini) {
-      // 替换模型占位符
-      url = url.replace('{{model}}', provider.model)
+      // 替换模型占位符 - 使用传入的 selectedModel
+      url = url.replace('{{model}}', selectedModel)
       
       // 添加 API Key 参数
       const urlObj = new URL(url)
@@ -65,6 +71,7 @@ export class RequestExecutor {
       }
     }
     
+    console.log(`🔗 构建的请求 URL: ${url}`)
     return url
   }
   

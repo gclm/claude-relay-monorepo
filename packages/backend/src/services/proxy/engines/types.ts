@@ -2,18 +2,21 @@
  * Engine 相关的类型定义
  */
 
-import type { ClaudeRequest, ClaudeResponse } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase, Message } from '@anthropic-ai/sdk/resources/messages'
 import type { ModelProvider } from '../../../../../../shared/types/admin/providers'
 import type { ModelTarget, RouteConfig } from '../../../../../../shared/types/admin/routes'
 import type { ClaudeToken } from '../../../types/proxy'
 import type { ApiKey } from '../../../../../../shared/types/key-pool'
 import type { BaseTransformer } from '../transformers/base-transformer'
 
+// 重新导出类型以便其他文件使用
+export type { ModelTarget, RouteConfig }
+
 /**
  * 请求上下文
  */
 export interface RequestContext {
-  readonly originalRequest: ClaudeRequest
+  readonly originalRequest: MessageCreateParamsBase
   readonly requestId: string
   
   // 路由信息
@@ -51,7 +54,7 @@ export interface RequestContext {
  * Engine 接口
  */
 export interface Engine {
-  processRequest(request: ClaudeRequest): Promise<Response>
+  processRequest(request: MessageCreateParamsBase): Promise<Response>
 }
 
 /**

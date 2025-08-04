@@ -96,13 +96,18 @@ export class ProviderService {
 
     // 如果删除的是当前选中的供应商，重置为官方模型
     const selectedModel = await this.modelRepo.getSelectedModel()
-    if (selectedModel.type === 'provider' && selectedModel.providerId === id) {
+    // 检查是否需要重置选中的模型（暂时注释掉，因为删除供应商不应该影响路由配置）
+    // TODO: 需要检查路由配置中是否使用了这个供应商
+    /*
+    if (selectedModel.type === 'route') {
+      // 可能需要检查路由配置是否使用了这个供应商
       await this.modelRepo.setSelectedModel({
-        id: 'official',
+        id: 'claude',
         name: '官方 Claude',
-        type: 'official'
+        type: 'claude'
       })
     }
+    */
     
     // 删除关联的 Key Pool
     await this.keyPoolManager.removePool(id)

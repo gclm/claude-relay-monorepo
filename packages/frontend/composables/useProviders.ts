@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import type { ModelProvider, EditProviderRequest } from '../../../shared/types/admin/providers'
 import type { KeyPoolStats } from '../../../shared/types/key-pool'
 import { API_ENDPOINTS } from '../../../shared/constants/endpoints'
@@ -7,6 +7,9 @@ import { useKeyPool } from './useKeyPool'
 export const useProviders = () => {
   const config = useRuntimeConfig()
   const { getMultipleKeyPoolStats, formatKeyPoolStatus } = useKeyPool()
+  
+  // 注入 refreshDashboard 方法
+  const refreshDashboard = inject<(() => Promise<void>) | undefined>('refreshDashboard')
   
   // 响应式数据
   const providers = ref<ModelProvider[]>([])
@@ -101,6 +104,10 @@ export const useProviders = () => {
       
       if (response.success) {
         await loadProviders() // 刷新供应商列表
+        // 刷新 dashboard 数据以更新供应商数量
+        if (refreshDashboard) {
+          await refreshDashboard()
+        }
         showEditModal.value = false
         editingProvider.value = null
         showNotification('供应商更新成功', 'success')
@@ -141,6 +148,10 @@ export const useProviders = () => {
           
           if (response.success) {
             await loadProviders()
+            // 刷新 dashboard 数据以更新供应商数量
+            if (refreshDashboard) {
+              await refreshDashboard()
+            }
             showNotification('删除供应商成功', 'success')
             showConfirmDialog.value = false
           }

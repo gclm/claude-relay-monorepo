@@ -119,6 +119,7 @@ import { ref, computed, onMounted, provide } from 'vue'
 import type { DashboardData } from '../../../../shared/types/admin/dashboard'
 import type { ModelProvider } from '../../../../shared/types/admin/providers'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
+import { useModelSelection } from '../../composables/useModelSelection'
 
 // 导入组件
 import DashboardStats from '../../components/admin/DashboardStats.vue'
@@ -138,6 +139,9 @@ useHead({
 const config = useRuntimeConfig()
 const router = useRouter()
 const route = useRoute()
+
+// 使用模型选择 composable
+const { loadAvailableRouteConfigs } = useModelSelection()
 
 // 响应式数据
 const activeTab = ref(route.query.tab as string || 'claude-accounts')
@@ -203,7 +207,10 @@ const logout = async () => {
 
 // 提供刷新 dashboard 数据的方法给子组件
 const refreshDashboard = async () => {
-  await loadDashboardData()
+  await Promise.all([
+    loadDashboardData(),
+    loadAvailableRouteConfigs() // 刷新模型选择的路由配置列表
+  ])
 }
 
 // 通过 provide/inject 向子组件提供刷新方法

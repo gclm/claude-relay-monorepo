@@ -23,10 +23,7 @@ export {
 export {
   // Proxy Constants
   CLAUDE_API_ENDPOINTS,
-  THIRD_PARTY_ENDPOINTS,
-  CLAUDE_MODELS,
-  DEFAULT_MODEL_CONFIG,
-  MODEL_CAPABILITIES
+  THIRD_PARTY_ENDPOINTS
 } from './proxy'
 
 export {

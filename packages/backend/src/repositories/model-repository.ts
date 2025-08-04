@@ -13,7 +13,7 @@ export class ModelRepository {
     const data = await this.adminKv.get(ADMIN_STORAGE_KEYS.SELECTED_MODEL)
     return data 
       ? JSON.parse(data)
-      : { id: 'official', name: '官方 Claude', type: 'official' }
+      : { id: 'claude', name: '官方 Claude', type: 'claude' }
   }
 
   // 设置选中的模型

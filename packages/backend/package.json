@@ -17,6 +17,7 @@
     "dependencies": {
         "@anthropic-ai/sdk": "^0.57.0",
         "@dqbd/tiktoken": "^1.0.21",
+        "@google/generative-ai": "^0.24.1",
         "hono": "^4.0.0"
     },
     "devDependencies": {

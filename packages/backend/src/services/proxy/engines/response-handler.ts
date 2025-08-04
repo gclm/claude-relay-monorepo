@@ -86,7 +86,10 @@ export class ResponseHandler {
     corsHeaders: Record<string, string>
   ): Promise<Response> {
     const responseData = await response.json()
+    console.log('📥 转换前的响应 (Provider 格式):', JSON.stringify(responseData, null, 2))
+    
     const transformedResponse = await transformer.transformResponse(responseData, false)
+    console.log('📤 转换后的响应 (Claude 格式):', JSON.stringify(transformedResponse, null, 2))
     
     return new Response(JSON.stringify(transformedResponse), {
       status: 200,

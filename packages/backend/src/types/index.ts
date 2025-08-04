@@ -23,9 +23,7 @@ export {
 
 export {
   // Proxy Types
-  ClaudeRequest,
   ClaudeToken,
-  ClaudeResponse,
   LLMProvider,
   ProxyRequestConfig,
   ProxyResponseMetadata

@@ -3,7 +3,7 @@
  * 根据请求特征和路由配置选择最合适的模型
  */
 
-import type { ClaudeRequest } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import type { RouteConfig, ModelTarget } from './types'
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages'
 import { get_encoding } from '@dqbd/tiktoken'
@@ -29,7 +29,7 @@ export class ModelRouterService {
   /**
    * 根据请求特征和路由配置选择模型
    */
-  async selectModel(request: ClaudeRequest, routeConfig: RouteConfig): Promise<ModelTarget> {
+  async selectModel(request: MessageCreateParamsBase, routeConfig: RouteConfig): Promise<ModelTarget> {
     const { rules, config } = routeConfig
     
     // 如果请求中包含逗号分隔的模型列表，使用第一个模型

@@ -1,9 +1,12 @@
-import { ref } from 'vue'
+import { ref, inject } from 'vue'
 import type { RouteConfig, AddRouteConfigRequest, EditRouteConfigRequest } from '../../../shared/types/admin/routes'
 import { API_ENDPOINTS } from '../../../shared/constants/endpoints'
 
 export const useRouteConfigs = () => {
   const config = useRuntimeConfig()
+  
+  // 注入 refreshDashboard 方法
+  const refreshDashboard = inject<(() => Promise<void>) | undefined>('refreshDashboard')
   
   // 响应式数据
   const routeConfigs = ref<RouteConfig[]>([])
@@ -73,6 +76,10 @@ export const useRouteConfigs = () => {
       
       if (response.success) {
         await loadRouteConfigs()
+        // 刷新 dashboard 数据以更新模型选择页面的路由配置列表
+        if (refreshDashboard) {
+          await refreshDashboard()
+        }
         showAddRouteModal.value = false
         showNotification('路由配置添加成功', 'success')
         return response.data
@@ -104,6 +111,10 @@ export const useRouteConfigs = () => {
       
       if (response.success) {
         await loadRouteConfigs()
+        // 刷新 dashboard 数据以更新模型选择页面的路由配置列表
+        if (refreshDashboard) {
+          await refreshDashboard()
+        }
         showEditRouteModal.value = false
         editingRoute.value = null
         showNotification('路由配置更新成功', 'success')
@@ -140,6 +151,10 @@ export const useRouteConfigs = () => {
         
         if (response.success) {
           await loadRouteConfigs()
+          // 刷新 dashboard 数据以更新模型选择页面的路由配置列表
+          if (refreshDashboard) {
+            await refreshDashboard()
+          }
           showNotification('路由配置删除成功', 'success')
           showConfirmDialog.value = false
         }

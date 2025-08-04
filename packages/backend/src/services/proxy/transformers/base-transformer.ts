@@ -1,4 +1,4 @@
-import type { ClaudeRequest, ClaudeResponse } from '../../../types/proxy/claude'
+import type { MessageCreateParamsBase, Message } from '@anthropic-ai/sdk/resources/messages'
 
 /**
  * 基础转换器接口
@@ -11,7 +11,7 @@ export interface BaseTransformer {
    * @param claudeRequest Claude API 格式的请求
    * @returns 目标 API 格式的请求
    */
-  transformRequest(claudeRequest: ClaudeRequest): Record<string, any>
+  transformRequest(claudeRequest: MessageCreateParamsBase): Record<string, any>
 
   /**
    * 转换响应格式
@@ -19,15 +19,15 @@ export interface BaseTransformer {
    * @param isStream 是否为流式响应
    * @returns Claude API 格式的响应或流
    */
-  transformResponse(providerResponse: Record<string, any>, isStream: boolean): Promise<ClaudeResponse | ReadableStream>
+  transformResponse(providerResponse: Record<string, any>, isStream: boolean): Promise<Message | ReadableStream>
 }
 
 /**
  * 抽象基类，提供通用工具方法
  */
 export abstract class AbstractTransformer implements BaseTransformer {
-  abstract transformRequest(claudeRequest: ClaudeRequest): Record<string, any>
-  abstract transformResponse(providerResponse: Record<string, any>, isStream: boolean): Promise<ClaudeResponse | ReadableStream>
+  abstract transformRequest(claudeRequest: MessageCreateParamsBase): Record<string, any>
+  abstract transformResponse(providerResponse: Record<string, any>, isStream: boolean): Promise<Message | ReadableStream>
 
   /**
    * 工具函数：安全解析 JSON

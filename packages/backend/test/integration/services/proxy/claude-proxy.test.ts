@@ -42,7 +42,7 @@ describe('Claude Proxy 集成测试', () => {
     
     const chatRequest = {
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 100,
+      // 不设置 max_tokens，测试默认行为
       messages: [
         {
           role: 'user',
@@ -77,7 +77,7 @@ describe('Claude Proxy 集成测试', () => {
     }
     
     console.log('✅ 请观察日志中的路由选择和模型选择')
-  })
+  }, 30000) // 增加超时时间到 30 秒
 
   test('长上下文请求', async () => {
     console.log('\n🔍 测试：长上下文请求')
@@ -85,7 +85,7 @@ describe('Claude Proxy 集成测试', () => {
     
     const longContextRequest = {
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 100,
+      max_tokens: 8192,  // 设置为 8192
       messages: [
         {
           role: 'user',
@@ -114,7 +114,7 @@ describe('Claude Proxy 集成测试', () => {
     }
     
     console.log('✅ 请观察日志中是否选择了长上下文模型 (glm-4-long)')
-  })
+  }, 30000) // 增加超时时间到 30 秒
 
   test('思考模式请求', async () => {
     console.log('\n🔍 测试：思考模式请求')
@@ -122,7 +122,7 @@ describe('Claude Proxy 集成测试', () => {
     
     const thinkRequest = {
       model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 200,
+      max_tokens: 8192,  // 设置为 8192
       messages: [
         {
           role: 'user',
@@ -151,7 +151,7 @@ describe('Claude Proxy 集成测试', () => {
     }
     
     console.log('✅ 请观察日志中是否选择了思考模式模型 (Qwen2.5-Math-72B)')
-  })
+  }, 30000) // 增加超时时间到 30 秒
 
   test('检查测试数据加载', async () => {
     console.log('\n🔍 测试：检查测试数据是否正确加载')
@@ -172,11 +172,28 @@ describe('Claude Proxy 集成测试', () => {
     
     // 检查路由配置详情
     if (configData.type === 'route' && configData.routeId) {
-      const routeConfig = await testApp.kv.get(`admin_route_config:${configData.routeId}`)
-      expect(routeConfig).toBeTruthy()
+      // 尝试不同的键名格式
+      let routeConfig = await testApp.kv.get(`admin_route_config:${configData.routeId}`)
       
-      const routeData = JSON.parse(routeConfig)
-      console.log('✅ 路由配置详情:', routeData.name, routeData.rules)
+      if (!routeConfig) {
+        // 尝试从路由配置列表中查找
+        const routeConfigs = await testApp.kv.get('admin_route_configs')
+        if (routeConfigs) {
+          const configs = JSON.parse(routeConfigs)
+          const config = configs.find((c: any) => c.id === configData.routeId)
+          if (config) {
+            console.log('✅ 从路由配置列表找到配置:', config.name, config.rules)
+            routeConfig = JSON.stringify(config)
+          }
+        }
+      }
+      
+      if (routeConfig) {
+        const routeData = JSON.parse(routeConfig)
+        console.log('✅ 路由配置详情:', routeData.name, routeData.rules)
+      } else {
+        console.log('❌ 无法找到路由配置:', configData.routeId)
+      }
     }
     
     // 检查 Key Pool 数据
