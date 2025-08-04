@@ -51,16 +51,14 @@
           @cancel="handleCancel" />
       </div>
       
-      <!-- 错误提示 -->
-      <div v-if="error" class="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-        <p class="text-sm text-red-600">{{ error }}</p>
-      </div>
+      <!-- 全局错误提示组件 -->
+      <GlobalErrorAlert />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { AddProviderRequest } from '../../../../shared/types/admin/providers'
+import type { AddProviderRequest, EditProviderRequest } from '../../../../shared/types/admin/providers'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
 import ProviderForm from '~/components/ProviderForm.vue'
 
@@ -75,7 +73,7 @@ const config = useRuntimeConfig()
 const router = useRouter()
 
 const loading = ref(false)
-const error = ref('')
+const { showNotification, withErrorHandling } = useErrorHandler()
 
 // 检查认证状态
 onMounted(() => {
@@ -88,35 +86,32 @@ onMounted(() => {
 const handleSubmit = async (data: AddProviderRequest | EditProviderRequest) => {
   // 添加供应商页面只会收到 AddProviderRequest
   const addData = data as AddProviderRequest
+  
   loading.value = true
-  error.value = ''
 
-  try {
-    const response = await $fetch<{ success: boolean; data: any }>(
-      API_ENDPOINTS.ADMIN_PROVIDERS,
-      {
-        method: 'POST',
-        baseURL: config.public.apiBaseUrl,
-        body: addData
+  await withErrorHandling(
+    async () => {
+      const response = await $fetch<{ success: boolean; data: any }>(
+        API_ENDPOINTS.ADMIN_PROVIDERS,
+        {
+          method: 'POST',
+          baseURL: config.public.apiBaseUrl,
+          body: addData
+        }
+      )
+
+      if (response.success) {
+        showNotification('模型供应商添加成功！', 'success')
+        setTimeout(() => {
+          router.push('/admin/dashboard?tab=providers')
+        }, 1500)
+        return response
       }
-    )
+    },
+    '添加模型供应商'
+  )
 
-    if (response.success) {
-      showNotification('模型供应商添加成功！', 'success')
-      setTimeout(() => {
-        router.push('/admin/dashboard?tab=providers')
-      }, 1500)
-    }
-  } catch (err: any) {
-    console.error('Add provider error:', err)
-    if (err.data?.error?.message) {
-      error.value = err.data.error.message
-    } else {
-      error.value = '添加供应商失败，请重试'
-    }
-  } finally {
-    loading.value = false
-  }
+  loading.value = false
 }
 
 const handleCancel = () => {
@@ -127,25 +122,5 @@ const logout = async () => {
   sessionStorage.removeItem('admin_authenticated')
   sessionStorage.removeItem('admin_username')
   await router.push('/admin')
-}
-
-const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-  const notification = document.createElement('div')
-  notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-xl text-white font-medium shadow-lg transform translate-x-full transition-transform duration-300 ${
-    type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-orange-500'
-  }`
-  notification.textContent = message
-  document.body.appendChild(notification)
-  
-  setTimeout(() => {
-    notification.classList.remove('translate-x-full')
-  }, 100)
-  
-  setTimeout(() => {
-    notification.classList.add('translate-x-full')
-    setTimeout(() => {
-      document.body.removeChild(notification)
-    }, 300)
-  }, 3000)
 }
 </script>

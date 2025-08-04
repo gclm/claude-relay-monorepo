@@ -188,7 +188,7 @@ describe('Claude Proxy 集成测试', () => {
 console.log(`
 📋 集成测试说明：
 
-1. 测试使用预设的测试数据（位于 test/integration/services/proxy/data/.kv-storage/）
+1. 测试使用后端实际的 .kv-storage 数据（包含前端配置的供应商和路由）
 2. 观察控制台日志，查看：
    - 路由选择逻辑
    - 模型选择过程  
@@ -196,10 +196,12 @@ console.log(`
    - API 调用状态
 
 3. 测试场景：
-   - 简单聊天（默认路由）
-   - 长上下文（长上下文路由）
-   - 数学问题（思考模式路由）
+   - 简单聊天（使用实际配置的默认路由）
+   - 长上下文（触发长上下文路由配置）
+   - 数学问题（触发思考模式路由配置）
 
 4. 运行命令：
    npm run test test/integration/services/proxy/claude-proxy.test.ts
+
+⚠️  注意：测试会使用真实的 .kv-storage 数据，确保已通过前端配置好供应商和路由
 `)

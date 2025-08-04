@@ -7,12 +7,13 @@ let globalTestKV: LocalKVStorage | null = null
 
 /**
  * 获取或创建全局测试 KV 存储实例
- * 使用测试数据目录作为存储路径
+ * 使用后端实际的 .kv-storage 目录，可以测试前端配置的真实数据
  */
 function getTestKV(): LocalKVStorage {
   if (!globalTestKV) {
-    const testDataPath = join(__dirname, 'integration/services/proxy/data/.kv-storage')
-    globalTestKV = new LocalKVStorage(testDataPath)
+    // 使用后端实际的 .kv-storage 目录
+    const realKVPath = join(__dirname, '../.kv-storage')
+    globalTestKV = new LocalKVStorage(realKVPath)
   }
   return globalTestKV
 }
