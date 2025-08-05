@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, provide } from 'vue'
+import { ref, computed, onMounted, provide, watch } from 'vue'
 import type { DashboardData } from '../../../../shared/types/admin/dashboard'
 import type { ModelProvider } from '../../../../shared/types/admin/providers'
 import { API_ENDPOINTS } from '../../../../shared/constants/endpoints'
@@ -152,6 +152,14 @@ const providers = ref<ModelProvider[]>([])
 const currentModelDisplay = computed(() => {
   if (!dashboard.value?.currentModel) return '官方 Claude'
   return dashboard.value.currentModel.name || '官方 Claude'
+})
+
+// 监听标签页切换，在切换到路由配置时重新加载供应商数据
+watch(activeTab, async (newTab) => {
+  if (newTab === 'routes') {
+    // 切换到路由配置页面时，重新加载供应商列表以确保数据最新
+    await loadProviders()
+  }
 })
 
 // 页面初始化

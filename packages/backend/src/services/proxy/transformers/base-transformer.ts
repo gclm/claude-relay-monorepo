@@ -24,3 +24,35 @@ export interface Transformer {
   cleanup?(): void
 }
 
+/**
+ * 简单的日志函数
+ */
+export function logClaudeRequest(request: MessageCreateParamsBase): void {
+  console.log('\n=== Claude Request (原始) ===')
+  console.log(JSON.stringify(request, null, 2))
+}
+
+export function logProviderRequest(provider: string, url: string, request: any): void {
+  console.log(`\n=== ${provider} Request (转换后) ===`)
+  console.log(`URL: ${url}`)
+  console.log(JSON.stringify(request, null, 2))
+}
+
+export function logProviderResponse(provider: string, response: any): void {
+  console.log(`\n=== ${provider} Response (原始) ===`)
+  if (response instanceof ReadableStream || response?.body instanceof ReadableStream) {
+    console.log('Type: Streaming Response')
+  } else {
+    console.log(JSON.stringify(response, null, 2))
+  }
+}
+
+export function logClaudeResponse(response: Message | ReadableStream): void {
+  console.log('\n=== Claude Response (转换后) ===')
+  if (response instanceof ReadableStream) {
+    console.log('Type: Streaming Response')
+  } else {
+    console.log(JSON.stringify(response, null, 2))
+  }
+}
+

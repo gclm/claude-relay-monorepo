@@ -5,6 +5,7 @@
  */
 
 import type { Transformer } from './base-transformer'
+import { logClaudeRequest, logProviderRequest, logProviderResponse, logClaudeResponse } from './base-transformer'
 import type { 
   MessageCreateParamsBase,
   Message,
@@ -55,16 +56,41 @@ export class ClaudeToGeminiTransformer implements Transformer {
    */
   async processRequest(claudeRequest: MessageCreateParamsBase, model: string): Promise<Message | ReadableStream> {
     const client = this.getClient()
+    
+    // 记录原始 Claude 请求
+    logClaudeRequest(claudeRequest)
+    
     const geminiParams = this.buildGeminiParams(claudeRequest, model)
+    
+    // 记录转换后的 Gemini 请求
+    logProviderRequest('Gemini', `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, geminiParams)
 
     if (claudeRequest.stream) {
       // 流式响应
       const streamResponse = await client.models.generateContentStream(geminiParams)
-      return this.transformStreamResponse(streamResponse)
+      
+      // 记录 Gemini 流式响应
+      logProviderResponse('Gemini', streamResponse)
+      
+      const transformedStream = await this.transformStreamResponse(streamResponse)
+      
+      // 记录转换后的 Claude 流式响应
+      logClaudeResponse(transformedStream)
+      
+      return transformedStream
     } else {
       // 非流式响应
       const response = await client.models.generateContent(geminiParams)
-      return this.transformNormalResponse(response)
+      
+      // 记录 Gemini 响应
+      logProviderResponse('Gemini', response)
+      
+      const claudeResponse = this.transformNormalResponse(response)
+      
+      // 记录转换后的 Claude 响应
+      logClaudeResponse(claudeResponse)
+      
+      return claudeResponse
     }
   }
 

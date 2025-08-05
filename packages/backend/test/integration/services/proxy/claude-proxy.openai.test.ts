@@ -114,7 +114,7 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 响应预览:', responseText.substring(0, 500) + '...')
-  }, 30000)
+  })
 
   test('编程助手场景：工具调用 - 代码执行', async () => {
     console.log('🔍 测试：工具调用代码执行场景')
@@ -188,7 +188,7 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 工具调用响应预览:', responseText.substring(0, 800) + '...')
-  }, 30000)
+  })
 
   test('编程助手场景：多步骤工具调用', async () => {
     console.log('🔍 测试：多步骤工具调用场景')
@@ -273,7 +273,7 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 多步骤工具调用响应预览:', responseText.substring(0, 600) + '...')
-  }, 30000)
+  })
 
   test('编程助手场景：带工具结果的对话', async () => {
     console.log('🔍 测试：带工具结果的完整对话场景')
@@ -383,7 +383,7 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 工具结果分析响应:', responseText.substring(0, 700) + '...')
-  }, 30000)
+  })
 
   test('编程助手场景：流式响应与工具调用', async () => {
     console.log('🔍 测试：流式响应工具调用场景')
@@ -452,7 +452,7 @@ print(f"Total revenue: {revenue}")
       
       console.log('📝 流式工具调用响应开头:', responseText.substring(0, 400) + '...')
     }
-  }, 30000)
+  })
 
   test('编程助手场景：复杂数据分析', async () => {
     console.log('🔍 测试：复杂数据分析场景')
@@ -524,7 +524,7 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 数据分析响应预览:', responseText.substring(0, 600) + '...')
-  }, 30000)
+  })
 
   test('编程助手场景：多轮技术对话', async () => {
     console.log('🔍 测试：多轮技术对话场景')
@@ -584,5 +584,5 @@ print(f"Total revenue: {revenue}")
     }
     
     console.log('📝 性能优化建议预览:', responseText.substring(0, 500) + '...')
-  }, 30000)
+  })
 })

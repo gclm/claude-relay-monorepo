@@ -5,6 +5,7 @@
  */
 
 import type { Transformer } from './base-transformer'
+import { logClaudeRequest, logProviderRequest, logProviderResponse, logClaudeResponse } from './base-transformer'
 import type { 
   MessageCreateParamsBase,
   Message,
@@ -28,6 +29,7 @@ import type {
 
 export class ClaudeToOpenAITransformer implements Transformer {
   private client: OpenAI | null = null
+  private baseURL: string = ''
 
   /**
    * 初始化 OpenAI 客户端
@@ -35,14 +37,16 @@ export class ClaudeToOpenAITransformer implements Transformer {
    */
   public initializeClient(apiKey: string, options?: { 
     baseUrl?: string
-    defaultHeaders?: Record<string, string>
-    timeout?: number
   }): void {
+    if (!options?.baseUrl) {
+      throw new Error('baseUrl is required for OpenAI-compatible providers')
+    }
+    
+    this.baseURL = options.baseUrl
     this.client = new OpenAI({
       apiKey,
-      baseURL: options?.baseUrl || 'https://api.openai.com/v1',
-      defaultHeaders: options?.defaultHeaders,
-      timeout: options?.timeout || 120000 // 2分钟超时，适合大模型推理
+      baseURL: this.baseURL
+      // 使用 OpenAI SDK 默认配置：10分钟超时，2次重试
     })
   }
 
@@ -61,17 +65,46 @@ export class ClaudeToOpenAITransformer implements Transformer {
    */
   async processRequest(claudeRequest: MessageCreateParamsBase, model: string): Promise<Message | ReadableStream> {
     const client = this.getClient()
+    
+    // 记录原始 Claude 请求
+    logClaudeRequest(claudeRequest)
 
     if (claudeRequest.stream) {
       // 流式响应
       const streamParams = this.buildStreamingParams(claudeRequest, model)
+      
+      // 记录转换后的 OpenAI 请求
+      logProviderRequest('OpenAI', `${this.baseURL}/chat/completions`, streamParams)
+      
       const stream = await client.chat.completions.create(streamParams)
-      return this.transformStreamResponse(stream)
+      
+      // 记录 OpenAI 流式响应
+      logProviderResponse('OpenAI', stream)
+      
+      const transformedStream = await this.transformStreamResponse(stream)
+      
+      // 记录转换后的 Claude 流式响应
+      logClaudeResponse(transformedStream)
+      
+      return transformedStream
     } else {
       // 非流式响应
       const params = this.buildNonStreamingParams(claudeRequest, model)
+      
+      // 记录转换后的 OpenAI 请求
+      logProviderRequest('OpenAI', `${this.baseURL}/chat/completions`, params)
+      
       const response = await client.chat.completions.create(params)
-      return this.transformResponse(response)
+      
+      // 记录 OpenAI 响应
+      logProviderResponse('OpenAI', response)
+      
+      const claudeResponse = this.transformResponse(response)
+      
+      // 记录转换后的 Claude 响应
+      logClaudeResponse(claudeResponse)
+      
+      return claudeResponse
     }
   }
 

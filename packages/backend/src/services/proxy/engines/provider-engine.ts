@@ -24,11 +24,16 @@ export class ProviderEngine {
     
     // 2. 初始化转换器客户端
     if (transformer.initializeClient && apiKey) {
-      transformer.initializeClient(apiKey.key)
+      const options = {
+        // OpenAI 兼容的供应商需要设置 baseUrl
+        baseUrl: provider.type === 'openai' 
+          ? provider.endpoint.replace(/\/chat\/completions$/, '') 
+          : undefined
+      }
+      transformer.initializeClient(apiKey.key, options)
     }
     
     // 3. 直接调用转换器的 processRequest 方法
-    console.log(`🚀 使用新版 ProviderEngine 调用 ${selectedModel} (供应商: ${provider.name})`)
     const result = await transformer.processRequest(request, selectedModel)
     
     // 4. 使用响应包装器包装结果
