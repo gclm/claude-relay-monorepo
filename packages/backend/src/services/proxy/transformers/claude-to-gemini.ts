@@ -13,12 +13,7 @@ import type {
   ToolUseBlockParam,
   ToolResultBlockParam,
   Tool as ClaudeTool,
-  ToolChoiceAuto,
-  ToolChoiceAny,
   ToolChoiceTool,
-  ContentBlock,
-  TextBlock,
-  ToolUseBlock,
   Usage,
   StopReason
 } from '@anthropic-ai/sdk/resources/messages'
@@ -30,13 +25,12 @@ import type {
   FunctionDeclaration,
   Tool,
   ToolConfig,
-  GenerateContentRequest,
-  GenerateContentResponse,
-  GenerateContentCandidate,
-  UsageMetadata
+  GenerateContentRequest
 } from '@google/generative-ai'
 
 export class ClaudeToGeminiTransformer extends AbstractTransformer {
+  // 维护 tool_use_id 到函数名的映射关系
+  private toolUseIdToFunctionName: Map<string, string> = new Map()
   /**
    * 转换 Claude 请求为 Gemini 格式
    */
@@ -48,14 +42,10 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
 
     // 处理系统消息
     if (claudeRequest.system) {
-      geminiRequest.systemInstruction = {
-        role: 'user',
-        parts: [{
-          text: typeof claudeRequest.system === 'string' 
-            ? claudeRequest.system 
-            : this.extractTextFromContent(claudeRequest.system)
-        }]
-      } as Content
+      const systemText = typeof claudeRequest.system === 'string' 
+        ? claudeRequest.system 
+        : this.extractTextFromContent(claudeRequest.system)
+      geminiRequest.systemInstruction = systemText
     }
 
     // 转换消息，合并连续的同角色消息
@@ -80,12 +70,9 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
       geminiRequest.generationConfig = {}
     }
     
-    // 设置 maxOutputTokens，如果没有指定则使用默认值 8192
-    // Gemini 2.5 Pro 要求必须设置此参数
+    // 设置 maxOutputTokens（可选参数）
     if (claudeRequest.max_tokens) {
       geminiRequest.generationConfig.maxOutputTokens = claudeRequest.max_tokens
-    } else {
-      geminiRequest.generationConfig.maxOutputTokens = 8192
     }
     if (claudeRequest.temperature !== undefined) {
       geminiRequest.generationConfig.temperature = claudeRequest.temperature
@@ -181,6 +168,8 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
           }
         } else if (content.type === 'tool_use') {
           const toolUseBlock = content as ToolUseBlockParam
+          // 记录 tool_use_id 到函数名的映射关系
+          this.toolUseIdToFunctionName.set(toolUseBlock.id, toolUseBlock.name)
           // 转换 Claude 的 tool_use 为 Gemini 的 functionCall
           const functionCall: FunctionCall = {
             name: toolUseBlock.name,
@@ -198,9 +187,7 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
             response: {
               result: typeof toolResultBlock.content === 'string' 
                 ? toolResultBlock.content 
-                : JSON.stringify(toolResultBlock.content),
-              tool_use_id: toolResultBlock.tool_use_id,
-              is_error: toolResultBlock.is_error || false
+                : JSON.stringify(toolResultBlock.content)
             }
           }
           parts.push({ functionResponse })
@@ -213,12 +200,25 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
 
   /**
    * 从 tool_use_id 提取函数名
-   * 这是一个辅助方法，实际使用时可能需要维护 tool_use_id 到函数名的映射
+   * 使用维护的映射表获取真实的函数名
    */
   private extractFunctionNameFromToolUseId(toolUseId: string): string {
-    // 简单实现：返回一个占位符
-    // 在实际使用中，应该维护一个映射表来追踪 tool_use_id 和函数名的关系
-    return 'function_' + toolUseId
+    const functionName = this.toolUseIdToFunctionName.get(toolUseId)
+    if (functionName) {
+      return functionName
+    }
+    
+    // 如果找不到映射关系，记录警告并返回占位符
+    console.warn(`Warning: No function name found for tool_use_id: ${toolUseId}. This may cause issues with Gemini API.`)
+    return 'unknown_function_' + toolUseId
+  }
+
+  /**
+   * 清理映射表
+   * 在 Serverless 环境中，通常在请求完成后清理以释放内存
+   */
+  public clearFunctionNameMapping(): void {
+    this.toolUseIdToFunctionName.clear()
   }
 
   /**
@@ -377,9 +377,12 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
           })
         } else if (part.functionCall) {
           // 函数调用
+          const toolUseId = this.generateToolUseId()
+          // 记录反向映射关系（Gemini → Claude 转换）
+          this.toolUseIdToFunctionName.set(toolUseId, part.functionCall.name)
           content.push({
             type: 'tool_use',
-            id: this.generateToolUseId(),
+            id: toolUseId,
             name: part.functionCall.name,
             input: part.functionCall.args || {}
           })
@@ -528,6 +531,8 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
 
                     // 生成 tool_use_id
                     currentToolUseId = self.generateToolUseId()
+                    // 记录反向映射关系（Gemini → Claude 转换）
+                    self.toolUseIdToFunctionName.set(currentToolUseId, part.functionCall.name)
                     
                     // 开始工具使用块
                     controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {

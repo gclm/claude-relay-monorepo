@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ClaudeToGeminiTransformer } from '../../../../src/services/proxy/transformers/claude-to-gemini'
 import type { MessageCreateParamsBase, Message } from '@anthropic-ai/sdk/resources/messages'
 
@@ -326,6 +326,321 @@ describe('ClaudeToGeminiTransformer', () => {
         const result = transformer.transformRequest(request)
         expect(result.toolConfig).toEqual(expected)
       })
+    })
+  })
+
+  describe('流式响应处理', () => {
+    it('应该正确处理流式响应转换', async () => {
+      // 模拟 Gemini SSE 流数据
+      const mockStreamData = [
+        'data: {"candidates":[{"content":{"parts":[{"text":"我来帮您"}]}}]}\n\n',
+        'data: {"candidates":[{"content":{"parts":[{"text":"查询天气"}]}}]}\n\n',
+        'data: {"candidates":[{"finishReason":"STOP","content":{"parts":[]}}],"usageMetadata":{"candidatesTokenCount":20}}\n\n',
+        'data: [DONE]\n\n'
+      ]
+
+      // 创建模拟的 ReadableStream
+      const mockStream = new ReadableStream({
+        start(controller) {
+          mockStreamData.forEach((data, index) => {
+            setTimeout(() => {
+              controller.enqueue(new TextEncoder().encode(data))
+              if (index === mockStreamData.length - 1) {
+                controller.close()
+              }
+            }, index * 10)
+          })
+        }
+      })
+
+      const claudeStream = await transformer.transformResponse(mockStream, true) as ReadableStream
+      expect(claudeStream).toBeInstanceOf(ReadableStream)
+
+      // 读取流数据并验证格式
+      const reader = claudeStream.getReader()
+      const decoder = new TextDecoder()
+      const chunks: string[] = []
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(decoder.decode(value))
+        }
+      } finally {
+        reader.releaseLock()
+      }
+
+      const fullData = chunks.join('')
+      
+      // 验证包含 Claude 格式的流事件
+      expect(fullData).toContain('event: message_start')
+      expect(fullData).toContain('event: content_block_start')
+      expect(fullData).toContain('event: content_block_delta')
+      expect(fullData).toContain('event: content_block_stop')
+      expect(fullData).toContain('event: message_stop')
+    }, 10000) // 设置较长的超时时间
+  })
+
+  describe('错误处理', () => {
+    it('应该处理无效的 Gemini 响应', async () => {
+      const invalidResponse = {
+        // 没有 candidates
+      }
+
+      await expect(transformer.transformResponse(invalidResponse, false))
+        .rejects.toThrow('Invalid Gemini response: no candidates found')
+    })
+
+    it('应该处理 tool_use_id 映射丢失的情况', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'unknown_id',
+                content: 'test result'
+              }
+            ]
+          }
+        ],
+        max_tokens: 100
+      }
+
+      // 捕获控制台警告
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      
+      const result = transformer.transformRequest(claudeRequest)
+      
+      // 验证处理了缺失的映射，并生成了警告
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No function name found for tool_use_id: unknown_id')
+      )
+      
+      // 验证生成了占位符函数名
+      expect(result.contents[0].parts[0].functionResponse.name)
+        .toBe('unknown_function_unknown_id')
+      
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('系统消息处理', () => {
+    it('应该正确处理字符串类型的系统消息', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        system: '你是一个有用的助手',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 100
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      expect(result.systemInstruction).toBe('你是一个有用的助手')
+    })
+
+    it('应该正确处理复杂类型的系统消息', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        system: [
+          { type: 'text', text: '你是一个有用的助手。' },
+          { type: 'text', text: '请始终保持礼貌。' }
+        ],
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 100
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      expect(result.systemInstruction).toBe('你是一个有用的助手。\n请始终保持礼貌。')
+    })
+  })
+
+  describe('图片处理', () => {
+    it('应该正确处理 base64 图片', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 100
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      
+      expect(result.contents[0].parts[0].inlineData).toBeDefined()
+      expect(result.contents[0].parts[0].inlineData.mimeType).toBe('image/jpeg')
+      expect(result.contents[0].parts[0].inlineData.data)
+        .toBe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==')
+    })
+
+    it('应该正确处理 URL 图片（转为文本占位符）', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'url',
+                  url: 'https://example.com/image.jpg'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 100
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      
+      expect(result.contents[0].parts[0].text)
+        .toBe('[Image: https://example.com/image.jpg]')
+    })
+  })
+
+  describe('内存管理', () => {
+    it('应该能清理函数名映射表', () => {
+      // 添加一些映射
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'test_id',
+                name: 'test_function',
+                input: {}
+              }
+            ]
+          }
+        ],
+        max_tokens: 100
+      }
+
+      transformer.transformRequest(claudeRequest)
+      
+      // 验证映射存在（通过尝试查找已知映射）
+      const request2: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'test_id',
+                content: 'result'
+              }
+            ]
+          }
+        ],
+        max_tokens: 100
+      }
+
+      const result2 = transformer.transformRequest(request2)
+      expect(result2.contents[0].parts[0].functionResponse.name).toBe('test_function')
+      
+      // 清理映射
+      transformer.clearFunctionNameMapping()
+      
+      // 验证映射被清理（应该生成占位符名称）
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const result3 = transformer.transformRequest(request2)
+      expect(result3.contents[0].parts[0].functionResponse.name).toBe('unknown_function_test_id')
+      
+      consoleSpy.mockRestore()
+    })
+  })
+
+  describe('完成原因映射', () => {
+    it('应该正确映射各种完成原因', async () => {
+      const testCases = [
+        { geminiReason: 'STOP', claudeReason: 'end_turn' },
+        { geminiReason: 'MAX_TOKENS', claudeReason: 'max_tokens' },
+        { geminiReason: 'SAFETY', claudeReason: 'end_turn' },
+        { geminiReason: 'RECITATION', claudeReason: 'end_turn' },
+        { geminiReason: 'OTHER', claudeReason: 'end_turn' },
+        { geminiReason: 'UNKNOWN_REASON', claudeReason: 'end_turn' },
+        { geminiReason: null, claudeReason: 'end_turn' }
+      ]
+
+      for (const { geminiReason, claudeReason } of testCases) {
+        const geminiResponse = {
+          candidates: [
+            {
+              content: {
+                parts: [{ text: 'test' }]
+              },
+              finishReason: geminiReason
+            }
+          ],
+          usageMetadata: {
+            promptTokenCount: 10,
+            candidatesTokenCount: 5
+          }
+        }
+
+        const result = await transformer.transformResponse(geminiResponse, false) as Message
+        expect(result.stop_reason).toBe(claudeReason)
+      }
+    })
+  })
+
+  describe('生成配置转换', () => {
+    it('应该正确转换所有生成配置参数', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 1000,
+        temperature: 0.7,
+        top_p: 0.9,
+        top_k: 40,
+        stop_sequences: ['stop1', 'stop2']
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      
+      expect(result.generationConfig?.maxOutputTokens).toBe(1000)
+      expect(result.generationConfig?.temperature).toBe(0.7)
+      expect(result.generationConfig?.topP).toBe(0.9)
+      expect(result.generationConfig?.topK).toBe(40)
+      expect(result.generationConfig?.stopSequences).toEqual(['stop1', 'stop2'])
+    })
+
+    it('应该处理缺失的生成配置参数', () => {
+      const claudeRequest: MessageCreateParamsBase = {
+        model: 'claude-3',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 100
+        // 没有指定任何生成配置
+      }
+
+      const result = transformer.transformRequest(claudeRequest)
+      
+      expect(result.generationConfig).toBeDefined()
+      expect(result.generationConfig?.maxOutputTokens).toBe(100)
+      expect(result.generationConfig?.temperature).toBeUndefined()
+      expect(result.generationConfig?.topP).toBeUndefined()
+      expect(result.generationConfig?.topK).toBeUndefined()
+      expect(result.generationConfig?.stopSequences).toBeUndefined()
     })
   })
 })

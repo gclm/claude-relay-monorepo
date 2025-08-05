@@ -6,9 +6,6 @@
 // 环境变量类型
 export * from './env'
 
-// 转换器类型
-export * from './transformer'
-
 // 代理相关类型
 export * from './proxy'
 

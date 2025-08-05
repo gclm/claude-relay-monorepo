@@ -62,7 +62,7 @@ export class ClaudeEngine implements Engine {
   }
   
   private async getValidToken(): Promise<ClaudeToken | null> {
-    // 获取所�?Claude 账号
+    // 获取所有Claude 账号
     const accountIdsData = await this.kv.get('claude_account_ids')
     if (!accountIdsData) return null
     
@@ -75,7 +75,7 @@ export class ClaudeEngine implements Engine {
       
       const token: ClaudeToken = JSON.parse(tokenData)
       
-      // 检�?token 是否过期
+      // 检查token 是否过期
       if (Date.now() > token.expires_at) {
         console.log(`Claude account ${accountId} token expired`)
         continue

@@ -5,17 +5,19 @@
 import { ModelProvider, AddProviderRequest, EditProviderRequest } from '../../../../../shared/types/admin/providers'
 import { HTTPException } from 'hono/http-exception'
 import { KeyPoolManager } from '../key-pool'
-import { ProviderRepository, ModelRepository } from '../../repositories'
+import { ProviderRepository, ModelRepository, RouteConfigRepository } from '../../repositories'
 
 export class ProviderService {
   private keyPoolManager: KeyPoolManager
   private providerRepo: ProviderRepository
-  private modelRepo: ModelRepository
+  private modelRepo: ModelRepository  // 保留以备将来使用
+  private routeConfigRepo: RouteConfigRepository
 
   constructor(private adminKv: KVNamespace) {
     this.keyPoolManager = new KeyPoolManager(adminKv)
     this.providerRepo = new ProviderRepository(adminKv)
     this.modelRepo = new ModelRepository(adminKv)
+    this.routeConfigRepo = new RouteConfigRepository(adminKv)
   }
 
   // 获取所有模型供应商
@@ -88,26 +90,24 @@ export class ProviderService {
 
   // 删除模型供应商
   async deleteProvider(id: string): Promise<void> {
-    const success = await this.providerRepo.delete(id)
-    
-    if (!success) {
+    // 检查供应商是否存在
+    const provider = await this.providerRepo.getById(id)
+    if (!provider) {
       throw new HTTPException(400, { message: '供应商不存在' })
     }
 
-    // 如果删除的是当前选中的供应商，重置为官方模型
-    const selectedModel = await this.modelRepo.getSelectedModel()
-    // 检查是否需要重置选中的模型（暂时注释掉，因为删除供应商不应该影响路由配置）
-    // TODO: 需要检查路由配置中是否使用了这个供应商
-    /*
-    if (selectedModel.type === 'route') {
-      // 可能需要检查路由配置是否使用了这个供应商
-      await this.modelRepo.setSelectedModel({
-        id: 'claude',
-        name: '官方 Claude',
-        type: 'claude'
+    // 检查路由配置中是否使用了该供应商
+    const usedInRoutes = await this.checkProviderUsedInRouteConfigs(id)
+    if (usedInRoutes.length > 0) {
+      throw new HTTPException(400, { 
+        message: `无法删除供应商"${provider.name}"，以下路由配置正在使用该供应商：${usedInRoutes.join('、')}。请先修改或删除相关路由配置后再试。`
       })
     }
-    */
+
+    const success = await this.providerRepo.delete(id)
+    if (!success) {
+      throw new HTTPException(500, { message: '删除供应商失败' })
+    }
     
     // 删除关联的 Key Pool
     await this.keyPoolManager.removePool(id)
@@ -116,5 +116,33 @@ export class ProviderService {
   // 获取 Key Pool 管理器实例
   getKeyPoolManager(): KeyPoolManager {
     return this.keyPoolManager
+  }
+
+  /**
+   * 检查路由配置中是否使用了指定的供应商
+   */
+  private async checkProviderUsedInRouteConfigs(providerId: string): Promise<string[]> {
+    const routeConfigs = await this.routeConfigRepo.getAllConfigs()
+    const usedRoutes: string[] = []
+
+    for (const config of routeConfigs) {
+      const { rules } = config
+      
+      // 检查所有可能的路由规则
+      const targets = [
+        rules.default,
+        rules.longContext,
+        rules.background, 
+        rules.think,
+        rules.webSearch
+      ].filter((target): target is NonNullable<typeof target> => target != null)
+
+      // 检查是否有任何目标使用了该供应商
+      if (targets.some(target => target.providerId === providerId)) {
+        usedRoutes.push(config.name)
+      }
+    }
+
+    return usedRoutes
   }
 }

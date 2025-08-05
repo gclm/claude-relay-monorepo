@@ -91,18 +91,29 @@ export class LocalKVStorage {
   async delete(key: string): Promise<void> {
     const filePath = this.getFilePath(key)
     
-    if (existsSync(filePath)) {
-      try {
-        unlinkSync(filePath)
-      } catch (error) {
-        console.error(`Error deleting KV file ${filePath}:`, error)
-        throw error
+    try {
+      unlinkSync(filePath)
+    } catch (error: any) {
+      // 如果文件不存在，这是正常情况，不需要抛出错误
+      if (error.code === 'ENOENT') {
+        return
       }
+      console.error(`Error deleting KV file ${filePath}:`, error)
+      throw error
     }
   }
 
   async list(options?: { prefix?: string }): Promise<any> {
     try {
+      // 如果目录不存在，直接返回空列表
+      if (!existsSync(this.basePath)) {
+        return { 
+          keys: [],
+          list_complete: true,
+          cacheStatus: null
+        }
+      }
+
       const files = readdirSync(this.basePath).filter(file => file.endsWith('.json'))
       const keys = files
         .map(file => this.fileNameToKey(file))
