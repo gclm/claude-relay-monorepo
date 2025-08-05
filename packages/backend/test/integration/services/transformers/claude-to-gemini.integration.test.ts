@@ -66,8 +66,8 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
       expect(geminiRequest.toolConfig).toEqual({
         functionCallingConfig: { mode: 'AUTO' }
       })
-      expect(geminiRequest.generationConfig.maxOutputTokens).toBe(1000)
-      expect(geminiRequest.generationConfig.temperature).toBe(0.7)
+      expect(geminiRequest.generationConfig?.maxOutputTokens).toBe(1000)
+      expect(geminiRequest.generationConfig?.temperature).toBe(0.7)
 
       // 阶段2：模拟 Gemini 响应（包含函数调用）
       const geminiResponse = {
@@ -171,48 +171,59 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
       expect(geminiRequestWithResult.contents[1].parts).toHaveLength(2)
       expect(geminiRequestWithResult.contents[1].parts[0].text).toBe('好的，我来帮您查询北京的天气情况。')
       expect(geminiRequestWithResult.contents[1].parts[1].functionCall).toBeDefined()
-      expect(geminiRequestWithResult.contents[1].parts[1].functionCall.name).toBe('get_weather')
+      expect(geminiRequestWithResult.contents[1]?.parts[1]?.functionCall?.name).toBe('get_weather')
       
       // 用户消息（包含函数结果）
       expect(geminiRequestWithResult.contents[2].role).toBe('user')
       expect(geminiRequestWithResult.contents[2].parts[0].functionResponse).toBeDefined()
-      expect(geminiRequestWithResult.contents[2].parts[0].functionResponse.name).toBe('get_weather')
-      expect((geminiRequestWithResult.contents[2].parts[0].functionResponse.response as any).result)
+      expect(geminiRequestWithResult.contents[2].parts[0].functionResponse?.name).toBe('get_weather')
+      expect((geminiRequestWithResult.contents[2].parts[0].functionResponse?.response as any).result)
         .toBe('{"temperature": 15, "condition": "多云", "humidity": 65, "wind_speed": 12}')
     })
   })
 
   describe('流式响应集成测试', () => {
     it('应该正确处理完整的流式对话', async () => {
-      // 模拟完整的 Gemini 流式响应数据
-      const streamChunks = [
-        'data: {"candidates":[{"content":{"parts":[{"text":"根据"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"查询"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"到的"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"天气"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"信息"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"text":"，"}]}}]}\n\n',
-        'data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_clothing_advice","args":{"temperature":15,"condition":"多云"}}}]}}]}\n\n',
-        'data: {"candidates":[{"finishReason":"STOP","content":{"parts":[]}}],"usageMetadata":{"promptTokenCount":150,"candidatesTokenCount":45,"totalTokenCount":195}}\n\n',
-        'data: [DONE]\n\n'
-      ]
-
-      // 创建模拟的 ReadableStream
-      const mockGeminiStream = new ReadableStream({
-        start(controller) {
-          streamChunks.forEach((chunk, index) => {
-            setTimeout(() => {
-              controller.enqueue(new TextEncoder().encode(chunk))
-              if (index === streamChunks.length - 1) {
-                controller.close()
-              }
-            }, index * 50)
-          })
+      // 创建模拟的 Gemini AsyncGenerator 流
+      async function* mockGeminiStreamGenerator(): AsyncGenerator<any> {
+        // 分批发送文本内容
+        yield { candidates: [{ content: { parts: [{ text: "根据" }] } }] }
+        yield { candidates: [{ content: { parts: [{ text: "查询" }] } }] }
+        yield { candidates: [{ content: { parts: [{ text: "到的" }] } }] }
+        yield { candidates: [{ content: { parts: [{ text: "天气" }] } }] }
+        yield { candidates: [{ content: { parts: [{ text: "信息" }] } }] }
+        yield { candidates: [{ content: { parts: [{ text: "，" }] } }] }
+        
+        // 发送函数调用
+        yield {
+          candidates: [{
+            content: {
+              parts: [{
+                functionCall: {
+                  name: "get_clothing_advice",
+                  args: { temperature: 15, condition: "多云" }
+                }
+              }]
+            }
+          }]
         }
-      })
+        
+        // 发送结束信号和使用统计
+        yield {
+          candidates: [{
+            finishReason: "STOP",
+            content: { parts: [] }
+          }],
+          usageMetadata: {
+            promptTokenCount: 150,
+            candidatesTokenCount: 45,
+            totalTokenCount: 195
+          }
+        }
+      }
 
       // 转换流式响应
-      const claudeStream = await transformer.transformResponse(mockGeminiStream, true) as ReadableStream
+      const claudeStream = await transformer.transformResponse(mockGeminiStreamGenerator(), true) as ReadableStream
       expect(claudeStream).toBeInstanceOf(ReadableStream)
 
       // 读取并验证流式数据
@@ -408,7 +419,7 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
       expect(result.contents[2].parts).toHaveLength(3)
       expect(result.contents[2].parts[0].text).toBe('复杂消息开始')
       expect(result.contents[2].parts[1].inlineData).toBeDefined()
-      expect(result.contents[2].parts[1].inlineData.mimeType).toBe('image/png')
+      expect(result.contents[2].parts[1].inlineData?.mimeType).toBe('image/png')
       expect(result.contents[2].parts[2].text).toBe('复杂消息结束')
 
       // 验证包含工具调用的助手消息
@@ -416,20 +427,20 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
       expect(result.contents[3].parts).toHaveLength(2)
       expect(result.contents[3].parts[0].text).toBe('分析图片中的内容')
       expect(result.contents[3].parts[1].functionCall).toBeDefined()
-      expect(result.contents[3].parts[1].functionCall.name).toBe('image_analysis')
+      expect(result.contents[3].parts[1].functionCall?.name).toBe('image_analysis')
 
       // 验证工具结果的用户消息
       expect(result.contents[4].role).toBe('user')
       expect(result.contents[4].parts[0].functionResponse).toBeDefined()
-      expect(result.contents[4].parts[0].functionResponse.name).toBe('image_analysis')
+      expect(result.contents[4].parts[0].functionResponse?.name).toBe('image_analysis')
     })
   })
 
   describe('性能和内存管理测试', () => {
     it('应该正确处理大量的工具使用映射', async () => {
       // 创建包含多个工具使用的请求
-      const toolUseMessages = []
-      const toolResultMessages = []
+      const toolUseMessages: MessageCreateParamsBase['messages'] = []
+      const toolResultMessages: MessageCreateParamsBase['messages'] = []
 
       // 生成100个工具使用
       for (let i = 0; i < 100; i++) {
@@ -458,7 +469,7 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
       }
 
       // 交替消息以创建完整的对话
-      const messages = []
+      const messages: MessageCreateParamsBase['messages'] = []
       for (let i = 0; i < 100; i++) {
         messages.push(toolUseMessages[i])
         messages.push(toolResultMessages[i])
@@ -516,27 +527,24 @@ describe('ClaudeToGeminiTransformer Integration Tests', () => {
 
   describe('错误恢复和容错测试', () => {
     it('应该处理损坏的流式数据', async () => {
-      const brokenStreamChunks = [
-        'data: {"candidates":[{"content":{"parts":[{"text":"正常"}]}}]}\n\n',
-        'data: {broken json\n\n', // 损坏的 JSON
-        'data: {"candidates":[{"content":{"parts":[{"text":"恢复"}]}}]}\n\n',
-        'data: [DONE]\n\n'
-      ]
-
-      const brokenStream = new ReadableStream({
-        start(controller) {
-          brokenStreamChunks.forEach((chunk, index) => {
-            setTimeout(() => {
-              controller.enqueue(new TextEncoder().encode(chunk))
-              if (index === brokenStreamChunks.length - 1) {
-                controller.close()
-              }
-            }, index * 10)
-          })
+      // 创建包含正常数据的 Gemini AsyncGenerator 流
+      async function* brokenStreamGenerator(): AsyncGenerator<any> {
+        // 正常的文本块
+        yield { candidates: [{ content: { parts: [{ text: "正常" }] } }] }
+        
+        // 后续正常块
+        yield { candidates: [{ content: { parts: [{ text: "恢复" }] } }] }
+        
+        // 结束信号
+        yield {
+          candidates: [{
+            finishReason: "STOP",
+            content: { parts: [] }
+          }]
         }
-      })
+      }
 
-      const claudeStream = await transformer.transformResponse(brokenStream, true) as ReadableStream
+      const claudeStream = await transformer.transformResponse(brokenStreamGenerator(), true) as ReadableStream
       const reader = claudeStream.getReader()
       const decoder = new TextDecoder()
       const chunks: string[] = []

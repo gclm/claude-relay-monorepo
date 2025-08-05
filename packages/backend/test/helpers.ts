@@ -5,12 +5,12 @@ let globalTestKV: LocalKVStorage | null = null
 
 /**
  * 获取或创建全局测试 KV 存储实例
- * 使用独立的测试目录，避免影响真实配置数据
+ * 使用真实的配置数据目录，便于集成测试
  */
 function getTestKV(): LocalKVStorage {
   if (!globalTestKV) {
-    // 使用独立的测试目录，避免影响真实配置
-    globalTestKV = new LocalKVStorage('.test-kv-storage')
+    // 使用真实配置目录，便于测试实际配置的路由行为
+    globalTestKV = new LocalKVStorage('.kv-storage')
   }
   return globalTestKV
 }
@@ -18,7 +18,7 @@ function getTestKV(): LocalKVStorage {
 
 /**
  * 创建测试用的应用实例
- * 直接复用 index.bun.ts 的逻辑，但使用独立的 KV 存储实例避免测试数据污染
+ * 直接复用 index.bun.ts 的逻辑，使用真实的 KV 存储以测试实际配置的路由行为
  */
 export function createTestApp() {
   const testKVStorage = getTestKV()

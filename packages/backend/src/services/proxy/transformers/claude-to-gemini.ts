@@ -1,9 +1,10 @@
 /**
- * Claude to Gemini 转换器
- * 支持完整的消息转换、函数调用和流式响应
+ * Claude to Gemini 转换器 - 重构版本
+ * 完全重构为 processRequest 模式，直接完成请求转换 -> 调用 -> 响应转换
+ * 充分利用 @google/genai SDK 的特性，大幅简化逻辑
  */
 
-import { AbstractTransformer } from './base-transformer'
+import type { Transformer } from './base-transformer'
 import type { 
   MessageCreateParamsBase,
   Message,
@@ -13,590 +14,334 @@ import type {
   ToolUseBlockParam,
   ToolResultBlockParam,
   Tool as ClaudeTool,
-  ToolChoiceTool,
   Usage,
   StopReason
 } from '@anthropic-ai/sdk/resources/messages'
+import { GoogleGenAI } from '@google/genai'
 import type {
+  GenerateContentResponse,
+  GenerateContentConfig,
   Content,
   Part,
-  FunctionCall,
-  FunctionResponse,
   FunctionDeclaration,
   Tool,
-  ToolConfig,
-  GenerateContentRequest
-} from '@google/generative-ai'
+  ToolConfig
+} from '@google/genai'
 
-export class ClaudeToGeminiTransformer extends AbstractTransformer {
+export class ClaudeToGeminiTransformer implements Transformer {
+  private client: GoogleGenAI | null = null
   // 维护 tool_use_id 到函数名的映射关系
   private toolUseIdToFunctionName: Map<string, string> = new Map()
-  /**
-   * 转换 Claude 请求为 Gemini 格式
-   */
-  transformRequest(claudeRequest: MessageCreateParamsBase): GenerateContentRequest {
-    const geminiRequest: GenerateContentRequest = {
-      contents: [],
-      generationConfig: {}
-    }
 
-    // 处理系统消息
+  /**
+   * 初始化 Gemini 客户端
+   */
+  public initializeClient(apiKey: string): void {
+    this.client = new GoogleGenAI({ apiKey })
+  }
+
+  /**
+   * 获取客户端实例
+   */
+  private getClient(): GoogleGenAI {
+    if (!this.client) {
+      throw new Error('Gemini client not initialized. Call initializeClient() first.')
+    }
+    return this.client
+  }
+
+  /**
+   * 主要转换方法 - 直接调用 SDK 并转换响应
+   */
+  async processRequest(claudeRequest: MessageCreateParamsBase, model: string): Promise<Message | ReadableStream> {
+    const client = this.getClient()
+    const geminiParams = this.buildGeminiParams(claudeRequest, model)
+
+    if (claudeRequest.stream) {
+      // 流式响应
+      const streamResponse = await client.models.generateContentStream(geminiParams)
+      return this.transformStreamResponse(streamResponse)
+    } else {
+      // 非流式响应
+      const response = await client.models.generateContent(geminiParams)
+      return this.transformNormalResponse(response)
+    }
+  }
+
+  /**
+   * 构建 Gemini API 参数 - 简化版本
+   */
+  private buildGeminiParams(claudeRequest: MessageCreateParamsBase, model: string) {
+    const config: GenerateContentConfig = {}
+    
+    // 基础配置
+    if (claudeRequest.max_tokens) config.maxOutputTokens = claudeRequest.max_tokens
+    if (claudeRequest.temperature !== undefined) config.temperature = claudeRequest.temperature
+    if (claudeRequest.top_p !== undefined) config.topP = claudeRequest.top_p
+    if (claudeRequest.top_k !== undefined) config.topK = claudeRequest.top_k
+    if (claudeRequest.stop_sequences) config.stopSequences = claudeRequest.stop_sequences
+
+    // 系统指令
     if (claudeRequest.system) {
-      const systemText = typeof claudeRequest.system === 'string' 
+      config.systemInstruction = typeof claudeRequest.system === 'string' 
         ? claudeRequest.system 
         : this.extractTextFromContent(claudeRequest.system)
-      geminiRequest.systemInstruction = systemText
     }
 
-    // 转换消息，合并连续的同角色消息
-    if (claudeRequest.messages) {
-      const mergedContents = this.mergeConsecutiveMessages(claudeRequest.messages)
-      geminiRequest.contents = mergedContents
+    // 工具配置
+    if (claudeRequest.tools?.length) {
+      config.tools = this.transformTools(claudeRequest.tools as ClaudeTool[])
+      if (claudeRequest.tool_choice) {
+        config.toolConfig = this.transformToolChoice(claudeRequest.tool_choice)
+      }
     }
 
-    // 处理工具定义
-    if (claudeRequest.tools && claudeRequest.tools.length > 0) {
-      geminiRequest.tools = this.transformTools(claudeRequest.tools as ClaudeTool[])
+    return {
+      model,
+      contents: claudeRequest.messages ? this.transformMessages(claudeRequest.messages) : [],
+      config
     }
-
-    // 处理工具选择策略
-    if (claudeRequest.tool_choice) {
-      // Gemini 使用 toolConfig 来控制工具使用
-      geminiRequest.toolConfig = this.transformToolChoice(claudeRequest.tool_choice)
-    }
-
-    // 转换生成配置
-    if (!geminiRequest.generationConfig) {
-      geminiRequest.generationConfig = {}
-    }
-    
-    // 设置 maxOutputTokens（可选参数）
-    if (claudeRequest.max_tokens) {
-      geminiRequest.generationConfig.maxOutputTokens = claudeRequest.max_tokens
-    }
-    if (claudeRequest.temperature !== undefined) {
-      geminiRequest.generationConfig.temperature = claudeRequest.temperature
-    }
-    if (claudeRequest.top_p !== undefined) {
-      geminiRequest.generationConfig.topP = claudeRequest.top_p
-    }
-    if (claudeRequest.top_k !== undefined) {
-      geminiRequest.generationConfig.topK = claudeRequest.top_k
-    }
-    if (claudeRequest.stop_sequences) {
-      geminiRequest.generationConfig.stopSequences = claudeRequest.stop_sequences
-    }
-
-    return geminiRequest
   }
 
   /**
-   * 转换响应格式
+   * 转换消息 - 简化版本
    */
-  async transformResponse(geminiResponse: Record<string, any>, isStream: boolean): Promise<Message | ReadableStream> {
-    if (isStream) {
-      // 对于流式响应，geminiResponse 应该是 ReadableStream
-      return this.transformStreamResponse(geminiResponse as unknown as ReadableStream)
-    }
-    return this.transformNormalResponse(geminiResponse)
-  }
-
-  /**
-   * 合并连续的同角色消息
-   * Gemini 要求严格的 user/model 交替，需要合并连续的同角色消息
-   */
-  private mergeConsecutiveMessages(messages: MessageParam[]): Content[] {
+  private transformMessages(messages: MessageParam[]): Content[] {
     const contents: Content[] = []
     let currentContent: Content | null = null
 
     for (const message of messages) {
-      const geminiContent = this.transformMessage(message)
-      
-      // 如果当前内容为空或角色不同，创建新的内容
-      if (!currentContent || currentContent.role !== geminiContent.role) {
-        if (currentContent) {
-          contents.push(currentContent)
-        }
-        currentContent = geminiContent
+      const role = message.role === 'assistant' ? 'model' : 'user'
+      const parts = this.transformMessageContent(message.content)
+
+      // 合并连续的同角色消息
+      if (!currentContent || currentContent.role !== role) {
+        if (currentContent) contents.push(currentContent)
+        currentContent = { role, parts }
       } else {
-        // 合并同角色的消息部分
-        currentContent.parts.push(...geminiContent.parts)
+        if (currentContent.parts) {
+          currentContent.parts.push(...parts)
+        }
       }
     }
 
-    // 添加最后一个内容
-    if (currentContent) {
-      contents.push(currentContent)
-    }
-
+    if (currentContent) contents.push(currentContent)
     return contents
   }
 
   /**
-   * 转换单个消息
+   * 转换消息内容 - 简化版本
    */
-  private transformMessage(message: MessageParam): Content {
-    const role = message.role === 'assistant' ? 'model' : 'user'
+  private transformMessageContent(content: string | Array<any>): Part[] {
     const parts: Part[] = []
 
-    if (typeof message.content === 'string') {
-      parts.push({ text: message.content })
-    } else if (Array.isArray(message.content)) {
-      for (const content of message.content) {
-        if (content.type === 'text') {
-          const textBlock = content as TextBlockParam
-          parts.push({ text: textBlock.text })
-        } else if (content.type === 'image') {
-          const imageBlock = content as ImageBlockParam
-          // 处理 base64 图片
-          if (imageBlock.source.type === 'base64') {
+    if (typeof content === 'string') {
+      parts.push({ text: content })
+    } else if (Array.isArray(content)) {
+      for (const item of content) {
+        switch (item.type) {
+          case 'text':
+            parts.push({ text: (item as TextBlockParam).text })
+            break
+          case 'image':
+            const imageBlock = item as ImageBlockParam
+            if (imageBlock.source.type === 'base64') {
+              parts.push({
+                inlineData: {
+                  mimeType: imageBlock.source.media_type,
+                  data: imageBlock.source.data
+                }
+              })
+            }
+            break
+          case 'tool_use':
+            const toolUseBlock = item as ToolUseBlockParam
+            this.toolUseIdToFunctionName.set(toolUseBlock.id, toolUseBlock.name)
             parts.push({
-              inlineData: {
-                mimeType: imageBlock.source.media_type,
-                data: imageBlock.source.data
+              functionCall: {
+                name: toolUseBlock.name,
+                args: (toolUseBlock.input as Record<string, unknown>) || {}
               }
             })
-          }
-          // 处理 URL 图片（Gemini 不直接支持 URL，需要转换）
-          else if (imageBlock.source.type === 'url') {
-            // 注意：Gemini API 不直接支持 URL 图片，这里需要额外处理
-            // 可以选择下载图片并转换为 base64，或者使用 Gemini 的 fileData 格式
-            // 这里暂时简单处理，实际使用时可能需要完善
+            break
+          case 'tool_result':
+            const toolResultBlock = item as ToolResultBlockParam
+            const functionName = this.toolUseIdToFunctionName.get(toolResultBlock.tool_use_id) || 'unknown_function'
             parts.push({
-              text: `[Image: ${imageBlock.source.url}]`
+              functionResponse: {
+                name: functionName,
+                response: {
+                  result: typeof toolResultBlock.content === 'string' 
+                    ? toolResultBlock.content 
+                    : JSON.stringify(toolResultBlock.content)
+                }
+              }
             })
-          }
-        } else if (content.type === 'tool_use') {
-          const toolUseBlock = content as ToolUseBlockParam
-          // 记录 tool_use_id 到函数名的映射关系
-          this.toolUseIdToFunctionName.set(toolUseBlock.id, toolUseBlock.name)
-          // 转换 Claude 的 tool_use 为 Gemini 的 functionCall
-          const functionCall: FunctionCall = {
-            name: toolUseBlock.name,
-            args: (toolUseBlock.input as object) || {}
-          }
-          parts.push({ functionCall })
-        } else if (content.type === 'tool_result') {
-          const toolResultBlock = content as ToolResultBlockParam
-          // 转换 Claude 的 tool_result 为 Gemini 的 functionResponse
-          // 注意：Gemini 的 functionResponse 需要匹配之前的 functionCall 名称
-          // 这里我们从 tool_use_id 中提取函数名（如果可能）
-          const functionName = this.extractFunctionNameFromToolUseId(toolResultBlock.tool_use_id)
-          const functionResponse: FunctionResponse = {
-            name: functionName,
-            response: {
-              result: typeof toolResultBlock.content === 'string' 
-                ? toolResultBlock.content 
-                : JSON.stringify(toolResultBlock.content)
-            }
-          }
-          parts.push({ functionResponse })
+            break
         }
       }
     }
 
-    return { role, parts }
+    return parts
   }
 
   /**
-   * 从 tool_use_id 提取函数名
-   * 使用维护的映射表获取真实的函数名
-   */
-  private extractFunctionNameFromToolUseId(toolUseId: string): string {
-    const functionName = this.toolUseIdToFunctionName.get(toolUseId)
-    if (functionName) {
-      return functionName
-    }
-    
-    // 如果找不到映射关系，记录警告并返回占位符
-    console.warn(`Warning: No function name found for tool_use_id: ${toolUseId}. This may cause issues with Gemini API.`)
-    return 'unknown_function_' + toolUseId
-  }
-
-  /**
-   * 清理映射表
-   * 在 Serverless 环境中，通常在请求完成后清理以释放内存
-   */
-  public clearFunctionNameMapping(): void {
-    this.toolUseIdToFunctionName.clear()
-  }
-
-  /**
-   * 转换工具定义
+   * 转换工具定义 - 简化版本
    */
   private transformTools(tools: ClaudeTool[]): Tool[] {
-    const functionDeclarations: FunctionDeclaration[] = []
+    const functionDeclarations: FunctionDeclaration[] = tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: this.cleanupParameters(tool.input_schema)
+    }))
 
-    for (const tool of tools) {
-      // Claude SDK 的 Tool 类型定义了 name、description 和 input_schema
-      // 清理参数中的特定字段，Gemini 不支持某些 JSON Schema 属性
-      const cleanedParameters = this.cleanupParameters(tool.input_schema)
-      
-      functionDeclarations.push({
-        name: tool.name,
-        description: tool.description,
-        parameters: cleanedParameters
-      })
-    }
-
-    // Gemini 的工具格式
-    return [{
-      functionDeclarations
-    } as Tool]
+    return [{ functionDeclarations }]
   }
 
   /**
-   * 清理参数定义，移除 Gemini 不支持的属性
-   */
-  private cleanupParameters(params: any): any {
-    if (!params || typeof params !== 'object') {
-      return params
-    }
-
-    const cleaned = JSON.parse(JSON.stringify(params)) // 深拷贝
-    this.cleanupParametersRecursive(cleaned)
-    return cleaned
-  }
-
-  /**
-   * 递归清理参数
-   */
-  private cleanupParametersRecursive(obj: any): void {
-    if (!obj || typeof obj !== 'object') {
-      return
-    }
-
-    if (Array.isArray(obj)) {
-      obj.forEach(item => this.cleanupParametersRecursive(item))
-      return
-    }
-
-    // 移除 Gemini 不支持的 JSON Schema 属性
-    delete obj.$schema
-    delete obj.additionalProperties
-    delete obj.const
-
-    // 处理特定的 format 属性
-    if (obj.type === 'string' && obj.format && !['enum', 'date-time'].includes(obj.format)) {
-      delete obj.format
-    }
-
-    // 递归处理所有子属性
-    Object.keys(obj).forEach(key => {
-      this.cleanupParametersRecursive(obj[key])
-    })
-  }
-
-  /**
-   * 转换工具选择策略
+   * 转换工具选择策略 - 简化版本
    */
   private transformToolChoice(toolChoice: MessageCreateParamsBase['tool_choice']): ToolConfig {
-    // Gemini 的 ToolConfig 使用 functionCallingConfig
     if (typeof toolChoice === 'string') {
-      switch (toolChoice) {
-        case 'auto':
-          return {
-            functionCallingConfig: {
-              mode: 'AUTO'
-            }
-          } as ToolConfig
-        case 'none':
-          return {
-            functionCallingConfig: {
-              mode: 'NONE'
-            }
-          } as ToolConfig
-        case 'required':
-        case 'any':
-          return {
-            functionCallingConfig: {
-              mode: 'ANY'
-            }
-          } as ToolConfig
-        default:
-          // 如果是特定工具名称
-          return {
-            functionCallingConfig: {
-              mode: 'ANY',
-              allowedFunctionNames: [toolChoice]
-            }
-          } as ToolConfig
-      }
-    } else if (toolChoice && typeof toolChoice === 'object') {
-      // Claude 的特定工具选择格式
-      if (toolChoice.type === 'tool' && 'name' in toolChoice) {
-        const toolChoiceTool = toolChoice as ToolChoiceTool
-        return {
-          functionCallingConfig: {
-            mode: 'ANY',
-            allowedFunctionNames: [toolChoiceTool.name]
-          }
-        } as ToolConfig
-      } else if (toolChoice.type === 'any') {
-        return {
-          functionCallingConfig: {
-            mode: 'ANY'
-          }
-        } as ToolConfig
-      } else if (toolChoice.type === 'auto') {
-        return {
-          functionCallingConfig: {
-            mode: 'AUTO'
-          }
-        } as ToolConfig
-      }
+      const mode = toolChoice === 'auto' ? 'AUTO' 
+                 : toolChoice === 'none' ? 'NONE' 
+                 : 'ANY'
+      return { functionCallingConfig: { mode: mode as any } }
     }
     
-    // 默认为 AUTO
-    return {
-      functionCallingConfig: {
-        mode: 'AUTO'
+    if (toolChoice && typeof toolChoice === 'object') {
+      if (toolChoice.type === 'tool' && 'name' in toolChoice) {
+        return {
+          functionCallingConfig: {
+            mode: 'ANY' as any,
+            allowedFunctionNames: [toolChoice.name]
+          }
+        }
       }
-    } as ToolConfig
+      const mode = toolChoice.type === 'auto' ? 'AUTO' : 'ANY'
+      return { functionCallingConfig: { mode: mode as any } }
+    }
+    
+    return { functionCallingConfig: { mode: 'AUTO' as any } }
   }
 
   /**
-   * 转换非流式响应
+   * 转换非流式响应 - 利用 SDK 的访问器简化
    */
-  private transformNormalResponse(geminiResponse: Record<string, any>): Message {
-    if (!geminiResponse.candidates || geminiResponse.candidates.length === 0) {
-      throw new Error('Invalid Gemini response: no candidates found')
-    }
-
-    const candidate = geminiResponse.candidates[0]
-    const content: any[] = []
-
-    // 处理响应内容
-    if (candidate.content?.parts) {
-      for (const part of candidate.content.parts) {
-        if (part.text) {
-          // 文本内容
-          content.push({
-            type: 'text',
-            text: part.text
-          })
-        } else if (part.functionCall) {
-          // 函数调用
-          const toolUseId = this.generateToolUseId()
-          // 记录反向映射关系（Gemini → Claude 转换）
-          this.toolUseIdToFunctionName.set(toolUseId, part.functionCall.name)
-          content.push({
-            type: 'tool_use',
-            id: toolUseId,
-            name: part.functionCall.name,
-            input: part.functionCall.args || {}
-          })
-        }
-        // 注意：functionResponse 通常不会出现在模型的响应中
-        // 它是用户提供的函数执行结果
-      }
-    }
-
-    // 构建 Usage 对象
-    const usage: Usage = {
-      input_tokens: geminiResponse.usageMetadata?.promptTokenCount || 0,
-      output_tokens: geminiResponse.usageMetadata?.candidatesTokenCount || 0,
-      cache_creation_input_tokens: null,
-      cache_read_input_tokens: null,
-      server_tool_use: null,
-      service_tier: null
-    }
-    
-    // 如果有缓存的 token 计数，更新 usage
-    if (geminiResponse.usageMetadata?.cachedContentTokenCount) {
-      usage.cache_creation_input_tokens = 0;
-      usage.cache_read_input_tokens = geminiResponse.usageMetadata.cachedContentTokenCount
-    }
-
-    // 构建 Claude 格式的响应
-    const response: Message = {
+  private transformNormalResponse(response: GenerateContentResponse): Message {
+    return {
       id: `msg_${Date.now()}`,
       type: 'message',
       role: 'assistant',
-      model: geminiResponse.modelVersion || 'gemini',
-      content: content,
-      stop_reason: this.mapFinishReason(candidate.finishReason),
+      model: response.modelVersion || 'gemini',
+      content: this.extractContentFromResponse(response),
+      stop_reason: this.mapFinishReason(response.candidates?.[0]?.finishReason || null),
       stop_sequence: null,
-      usage: usage
+      usage: this.buildUsageStats(response.usageMetadata)
+    }
+  }
+
+  /**
+   * 从响应中提取内容 - 利用 SDK 简化
+   */
+  private extractContentFromResponse(response: GenerateContentResponse): any[] {
+    const content: any[] = []
+    
+    // 利用 SDK 的 text 访问器
+    if (response.text) {
+      content.push({ type: 'text', text: response.text })
     }
 
-    return response
+    // 处理函数调用
+    const candidate = response.candidates?.[0]
+    if (candidate?.content?.parts) {
+      for (const part of candidate.content.parts) {
+        if (part.functionCall) {
+          const toolUseId = this.generateToolUseId()
+          if (part.functionCall.name) {
+            this.toolUseIdToFunctionName.set(toolUseId, part.functionCall.name)
+            content.push({
+              type: 'tool_use',
+              id: toolUseId,
+              name: part.functionCall.name,
+              input: part.functionCall.args || {}
+            })
+          }
+        }
+      }
+    }
+
+    return content
   }
 
   /**
-   * 生成唯一的 tool_use_id
+   * 转换流式响应 - 大幅简化
    */
-  private generateToolUseId(): string {
-    return `toolu_${Math.random().toString(36).substring(2, 15)}`
-  }
-
-  /**
-   * 转换流式响应
-   */
-  private async transformStreamResponse(geminiStream: ReadableStream): Promise<ReadableStream> {
+  private async transformStreamResponse(streamResponse: AsyncGenerator<GenerateContentResponse>): Promise<ReadableStream> {
     const encoder = new TextEncoder()
-    const decoder = new TextDecoder()
     const self = this
-
+    
     return new ReadableStream({
       async start(controller) {
-        const reader = geminiStream.getReader()
-        let buffer = ''
         let messageStarted = false
         let contentIndex = 0
-        let currentContentType: 'text' | 'tool_use' | null = null
-        let accumulatedText = ''
-        let currentToolUseId: string | null = null
 
         try {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() || ''
-
-            for (const line of lines) {
-              if (line.trim() === '') continue
-              if (!line.startsWith('data: ')) continue
-
-              const data = line.slice(6).trim()
-              if (!data || data === '[DONE]') continue
-
-              const chunk = self.safeJsonParse(data)
-              if (!chunk) continue
-
-              // 第一个块，发送 message_start
-              if (!messageStarted) {
-                controller.enqueue(encoder.encode(self.createSSEEvent('message_start', {
-                  type: 'message_start',
-                  message: {
-                    id: `msg_${Date.now()}`,
-                    type: 'message',
-                    role: 'assistant',
-                    model: chunk.modelVersion || 'gemini',
-                    content: [],
-                    stop_reason: null,
-                    stop_sequence: null,
-                    usage: { input_tokens: 0, output_tokens: 0 }
-                  }
-                })))
-                messageStarted = true
-              }
-
-              // 处理内容块
-              if (chunk.candidates?.[0]?.content?.parts) {
-                for (const part of chunk.candidates[0].content.parts) {
-                  if (part.text !== undefined) {
-                    // 处理文本内容
-                    if (currentContentType !== 'text') {
-                      // 如果之前是工具调用，先结束它
-                      if (currentContentType === 'tool_use' && currentToolUseId) {
-                        controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
-                          type: 'content_block_stop',
-                          index: contentIndex
-                        })))
-                        contentIndex++
-                      }
-                      
-                      // 开始新的文本块
-                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
-                        type: 'content_block_start',
-                        index: contentIndex,
-                        content_block: { type: 'text', text: '' }
-                      })))
-                      currentContentType = 'text'
-                      accumulatedText = ''
-                    }
-
-                    // 发送文本增量
-                    controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
-                      type: 'content_block_delta',
-                      index: contentIndex,
-                      delta: { type: 'text_delta', text: part.text }
-                    })))
-
-                    accumulatedText += part.text
-                  } else if ('functionCall' in part && part.functionCall) {
-                    // 处理函数调用
-                    if (currentContentType === 'text' && accumulatedText) {
-                      // 如果之前是文本，先结束它
-                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
-                        type: 'content_block_stop',
-                        index: contentIndex
-                      })))
-                      contentIndex++
-                    }
-
-                    // 生成 tool_use_id
-                    currentToolUseId = self.generateToolUseId()
-                    // 记录反向映射关系（Gemini → Claude 转换）
-                    self.toolUseIdToFunctionName.set(currentToolUseId, part.functionCall.name)
-                    
-                    // 开始工具使用块
-                    controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
-                      type: 'content_block_start',
-                      index: contentIndex,
-                      content_block: {
-                        type: 'tool_use',
-                        id: currentToolUseId,
-                        name: part.functionCall.name,
-                        input: {}
-                      }
-                    })))
-
-                    // 发送工具输入
-                    if (part.functionCall.args) {
-                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
-                        type: 'content_block_delta',
-                        index: contentIndex,
-                        delta: {
-                          type: 'input_json_delta',
-                          partial_json: JSON.stringify(part.functionCall.args)
-                        }
-                      })))
-                    }
-
-                    currentContentType = 'tool_use'
-                  }
+          for await (const chunk of streamResponse) {
+            // 发送 message_start
+            if (!messageStarted) {
+              controller.enqueue(encoder.encode(self.createSSEEvent('message_start', {
+                type: 'message_start',
+                message: {
+                  id: `msg_${Date.now()}`,
+                  type: 'message',
+                  role: 'assistant',
+                  model: chunk.modelVersion || 'gemini',
+                  content: [],
+                  stop_reason: null,
+                  stop_sequence: null,
+                  usage: { input_tokens: 0, output_tokens: 0 }
                 }
-              }
+              })))
+              messageStarted = true
+            }
 
-              // 处理结束原因和使用统计
-              if (chunk.candidates?.[0]?.finishReason) {
-                // 结束当前内容块
-                if (currentContentType === 'text' || currentContentType === 'tool_use') {
-                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
-                    type: 'content_block_stop',
-                    index: contentIndex
-                  })))
-                }
+            // 利用 SDK 的 text 访问器简化文本处理
+            if (chunk.text) {
+              // 开始内容块
+              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
+                type: 'content_block_start',
+                index: contentIndex,
+                content_block: { type: 'text', text: '' }
+              })))
 
-                // 发送消息增量（包含结束原因和使用统计）
-                const messageDelta: any = {
-                  type: 'message_delta',
-                  delta: {
-                    stop_reason: self.mapFinishReason(chunk.candidates[0].finishReason),
-                    stop_sequence: null
-                  }
-                }
+              // 发送文本增量
+              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                type: 'content_block_delta',
+                index: contentIndex,
+                delta: { type: 'text_delta', text: chunk.text }
+              })))
 
-                // 添加使用统计
-                if (chunk.usageMetadata) {
-                  messageDelta.usage = {
-                    output_tokens: chunk.usageMetadata.candidatesTokenCount || 0
-                  }
-                  
-                  // 如果有缓存的 token
-                  if (chunk.usageMetadata.cachedContentTokenCount) {
-                    messageDelta.usage.cache_creation_input_tokens = 0
-                    messageDelta.usage.cache_read_input_tokens = chunk.usageMetadata.cachedContentTokenCount
-                  }
-                }
+              // 结束内容块
+              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                type: 'content_block_stop',
+                index: contentIndex
+              })))
+              contentIndex++
+            }
 
-                controller.enqueue(encoder.encode(self.createSSEEvent('message_delta', messageDelta)))
-              }
+            // 处理结束
+            if (chunk.candidates?.[0]?.finishReason) {
+              controller.enqueue(encoder.encode(self.createSSEEvent('message_delta', {
+                type: 'message_delta',
+                delta: {
+                  stop_reason: self.mapFinishReason(chunk.candidates[0].finishReason),
+                  stop_sequence: null
+                },
+                usage: chunk.usageMetadata ? {
+                  output_tokens: chunk.usageMetadata.candidatesTokenCount || 0
+                } : undefined
+              })))
             }
           }
 
@@ -608,10 +353,23 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
           controller.error(error)
         } finally {
           controller.close()
-          reader.releaseLock()
         }
       }
     })
+  }
+
+  /**
+   * 构建使用统计 - 简化版本
+   */
+  private buildUsageStats(usageMetadata?: any): Usage {
+    return {
+      input_tokens: usageMetadata?.promptTokenCount || 0,
+      output_tokens: usageMetadata?.candidatesTokenCount || 0,
+      cache_creation_input_tokens: null,
+      cache_read_input_tokens: usageMetadata?.cachedContentTokenCount || null,
+      server_tool_use: null,
+      service_tier: null
+    }
   }
 
   /**
@@ -623,8 +381,8 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
     const mapping: Record<string, StopReason> = {
       'STOP': 'end_turn',
       'MAX_TOKENS': 'max_tokens',
-      'SAFETY': 'end_turn', // Gemini 的 SAFETY 映射到 end_turn，因为 Claude 没有 content_filter 
-      'RECITATION': 'end_turn', // 同上
+      'SAFETY': 'end_turn',
+      'RECITATION': 'end_turn',
       'OTHER': 'end_turn'
     }
     
@@ -632,7 +390,45 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
   }
 
   /**
-   * 从复杂内容中提取文本
+   * 生成唯一的 tool_use_id
+   */
+  private generateToolUseId(): string {
+    return `toolu_${Math.random().toString(36).substring(2, 15)}`
+  }
+
+  /**
+   * 清理参数定义
+   */
+  private cleanupParameters(params: any): any {
+    if (!params || typeof params !== 'object') return params
+    
+    const cleaned = JSON.parse(JSON.stringify(params))
+    this.removeUnsupportedProperties(cleaned)
+    return cleaned
+  }
+
+  /**
+   * 递归移除不支持的属性
+   */
+  private removeUnsupportedProperties(obj: any): void {
+    if (!obj || typeof obj !== 'object') return
+    
+    if (Array.isArray(obj)) {
+      obj.forEach(item => this.removeUnsupportedProperties(item))
+      return
+    }
+
+    // 移除 Gemini 不支持的属性
+    delete obj.$schema
+    delete obj.additionalProperties
+    delete obj.const
+
+    // 递归处理子属性
+    Object.values(obj).forEach(value => this.removeUnsupportedProperties(value))
+  }
+
+  /**
+   * 从复合内容中提取文本
    */
   private extractTextFromContent(content: Array<TextBlockParam | ImageBlockParam>): string {
     return content
@@ -640,4 +436,19 @@ export class ClaudeToGeminiTransformer extends AbstractTransformer {
       .map(item => item.text)
       .join('\n')
   }
+
+  /**
+   * 清理资源
+   */
+  public cleanup(): void {
+    this.toolUseIdToFunctionName.clear()
+  }
+
+  /**
+   * 创建 SSE 事件格式
+   */
+  private createSSEEvent(event: string, data: Record<string, any>): string {
+    return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
+  }
+
 }

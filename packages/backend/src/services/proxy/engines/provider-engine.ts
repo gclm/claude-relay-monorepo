@@ -1,59 +1,38 @@
 /**
- * 第三方供应商 Engine - Context 模式版本
+ * 第三方供应商代理引擎
+ * 直接使用转换器的 processRequest 方法，大幅简化架构
  */
 
-import type { Engine, RequestContext } from './types'
 import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import { ProviderResolver } from './provider-resolver'
-import { RequestExecutor } from './request-executor'
-import { ResponseHandler } from './response-handler'
-import { HTTPException } from 'hono/http-exception'
+import { ResponseWrapper } from './response-wrapper'
 
-export class ProviderEngine implements Engine {
+export class ProviderEngine {
   private providerResolver: ProviderResolver
-  private requestExecutor: RequestExecutor
-  private responseHandler: ResponseHandler
   
-  constructor(private kv: KVNamespace) {
-    // 初始化业务服务
+  constructor(kv: any) {  // 使用 any 避免 KVNamespace 类型错误
     this.providerResolver = new ProviderResolver(kv)
-    this.requestExecutor = new RequestExecutor()
-    this.responseHandler = new ResponseHandler()
   }
   
+  /**
+   * 处理请求 - 使用完整的 ProviderResolver
+   */
   async processRequest(request: MessageCreateParamsBase): Promise<Response> {
-    const context: RequestContext = {
-      originalRequest: request,
-      requestId: crypto.randomUUID(),
-      errors: []
-    }
-    
-    // 1. 解析 Provider（使用解构赋值更新 context）
+    // 1. 使用 ProviderResolver 解析完整的供应商配置
     const resolution = await this.providerResolver.resolve(request)
-    const { provider, selectedModel, apiKey, routeConfig, transformer } = resolution
+    const { provider, selectedModel, apiKey, transformer } = resolution
     
-    context.provider = provider
-    context.selectedModel = selectedModel
-    context.apiKey = apiKey
-    context.routeConfig = routeConfig
-    context.transformer = transformer
-    
-    // 2. 执行请求
-    const response = await this.requestExecutor.execute(context)
-    context.rawResponse = response
-    
-    // 3. 处理响应（包括状态检查）
-    if (!response.ok) {
-      throw new HTTPException(response.status as any, { 
-        message: `Provider API error: ${response.statusText}` 
-      })
+    // 2. 初始化转换器客户端
+    if (transformer.initializeClient && apiKey) {
+      transformer.initializeClient(apiKey.key)
     }
     
-    const processedResponse = await this.responseHandler.handle(context)
-    context.processedResponse = processedResponse
+    // 3. 直接调用转换器的 processRequest 方法
+    console.log(`🚀 使用新版 ProviderEngine 调用 ${selectedModel} (供应商: ${provider.name})`)
+    const result = await transformer.processRequest(request, selectedModel)
     
-    return processedResponse
+    // 4. 使用响应包装器包装结果
+    return ResponseWrapper.wrap(result)
   }
-  
   
 }

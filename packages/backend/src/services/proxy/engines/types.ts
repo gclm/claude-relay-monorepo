@@ -7,7 +7,7 @@ import type { ModelProvider } from '../../../../../../shared/types/admin/provide
 import type { ModelTarget, RouteConfig } from '../../../../../../shared/types/admin/routes'
 import type { ClaudeToken } from '../../../types/proxy'
 import type { ApiKey } from '../../../../../../shared/types/key-pool'
-import type { BaseTransformer } from '../transformers/base-transformer'
+import type { Transformer } from '../transformers/base-transformer'
 
 // 重新导出类型以便其他文件使用
 export type { ModelTarget, RouteConfig }
@@ -31,7 +31,7 @@ export interface RequestContext {
   apiKey?: ApiKey
   
   // 转换器
-  transformer?: BaseTransformer
+  transformer?: Transformer
   
   // 转换后的数据
   transformedRequest?: Record<string, any>  // 转换后的请求体，可能是 OpenAI/Gemini 等格式
@@ -40,8 +40,8 @@ export interface RequestContext {
   requestUrl?: string
   requestHeaders?: Record<string, string>
   
-  // 原始响应
-  rawResponse?: Response
+  // 原始响应 (可能是 Response 或 AsyncGenerator)
+  rawResponse?: Response | AsyncGenerator<any>
   
   // 处理后的响应
   processedResponse?: Response
@@ -73,5 +73,5 @@ export interface ProviderResolution {
   selectedModel: string
   apiKey: ApiKey
   routeConfig: RouteConfig
-  transformer: BaseTransformer
+  transformer: Transformer
 }

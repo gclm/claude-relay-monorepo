@@ -1,15 +1,15 @@
 /**
  * 转换器注册表
- * 统一管理所有的格式转换器
+ * 统一管理所有的简化转换器，均使用 processRequest 模式
  */
 
-import type { BaseTransformer } from './base-transformer'
-import { ClaudeToOpenAITransformer } from './claude-to-openai'
+import type { Transformer } from './base-transformer'
+// import { ClaudeToOpenAITransformer } from './claude-to-openai' // TODO: 待重构
 import { ClaudeToGeminiTransformer } from './claude-to-gemini'
 
 export class TransformerRegistry {
   private static instance: TransformerRegistry
-  private transformers: Map<string, BaseTransformer>
+  private transformers: Map<string, Transformer>
 
   private constructor() {
     this.transformers = new Map()
@@ -30,28 +30,29 @@ export class TransformerRegistry {
    * 注册默认转换器
    */
   private registerDefaultTransformers(): void {
-    this.register('claude-to-openai', new ClaudeToOpenAITransformer())
+    // this.register('claude-to-openai', new ClaudeToOpenAITransformer()) // TODO: 待重构
     this.register('claude-to-gemini', new ClaudeToGeminiTransformer())
   }
 
   /**
    * 注册转换器
    */
-  register(type: string, transformer: BaseTransformer): void {
+  register(type: string, transformer: Transformer): void {
     this.transformers.set(type, transformer)
   }
 
   /**
    * 获取转换器
    */
-  get(type: string): BaseTransformer {
+  get(type: string): Transformer {
     const transformer = this.transformers.get(type)
     if (!transformer) {
-      // 默认返回 OpenAI 转换器
-      return this.transformers.get('claude-to-openai')!
+      // 默认返回 Gemini 转换器
+      return this.transformers.get('claude-to-gemini')!
     }
     return transformer
   }
+
 
   /**
    * 检查转换器是否存在
