@@ -4,7 +4,7 @@
  */
 
 import type { Transformer } from './base-transformer'
-// import { ClaudeToOpenAITransformer } from './claude-to-openai' // TODO: 待重构
+import { ClaudeToOpenAITransformer } from './claude-to-openai'
 import { ClaudeToGeminiTransformer } from './claude-to-gemini'
 
 export class TransformerRegistry {
@@ -30,7 +30,8 @@ export class TransformerRegistry {
    * 注册默认转换器
    */
   private registerDefaultTransformers(): void {
-    // this.register('claude-to-openai', new ClaudeToOpenAITransformer()) // TODO: 待重构
+    // 使用基于官方 SDK 的 OpenAI 转换器
+    this.register('claude-to-openai', new ClaudeToOpenAITransformer())
     this.register('claude-to-gemini', new ClaudeToGeminiTransformer())
   }
 

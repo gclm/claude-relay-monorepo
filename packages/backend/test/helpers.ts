@@ -16,6 +16,9 @@ function getTestKV(): LocalKVStorage {
 }
 
 
+// 缓存应用实例，避免重复动态导入
+let cachedWorkerApp: any = null
+
 /**
  * 创建测试用的应用实例
  * 直接复用 index.bun.ts 的逻辑，使用真实的 KV 存储以测试实际配置的路由行为
@@ -39,9 +42,12 @@ export function createTestApp() {
       passThroughOnException: () => { /* 测试中不执行 */ }
     }
     
-    // 直接调用 worker app 的 fetch（index.bun.ts 内部使用的同一个）
-    const workerApp = await import('../src/index')
-    return workerApp.default.fetch(request, env, ctx as any)
+    // 缓存应用实例，避免重复动态导入
+    if (!cachedWorkerApp) {
+      cachedWorkerApp = await import('../src/index')
+    }
+    
+    return await cachedWorkerApp.default.fetch(request, env, ctx as any)
   }
   
   return {

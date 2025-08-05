@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     setupFiles: ['./test/setup.ts'],
     include: ['test/**/*.{test,spec}.{js,ts}'],
+    testTimeout: 300000, // 5分钟全局超时，适应API调用的延迟
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

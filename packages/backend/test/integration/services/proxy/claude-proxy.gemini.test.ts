@@ -81,7 +81,7 @@ console.log(calculateTotal(cart));
     }
     
     console.log('📝 响应预览:', responseText)
-  }, 30000)
+  })
 
   test('编程助手场景：代码重构', async () => {
     console.log('🔍 测试：代码重构场景')
@@ -160,7 +160,7 @@ class UserList extends React.Component {
     }
     
     console.log('📝 响应预览:', responseText)
-  }, 30000)
+  })
 
   test('编程助手场景：算法优化', async () => {
     console.log('🔍 测试：算法优化场景')
@@ -220,7 +220,7 @@ user = find_user_by_email(users, 'bob@example.com')
     }
     
     console.log('📝 响应预览:', responseText)
-  }, 30000)
+  })
 
   test('编程助手场景：流式响应', async () => {
     console.log('🔍 测试：流式响应编程场景')
@@ -261,7 +261,7 @@ user = find_user_by_email(users, 'bob@example.com')
       
       console.log('📝 流式响应开头:', responseText.substring(0, 300) + '...')
     }
-  }, 30000)
+  })
 
   test('编程助手场景：多轮对话', async () => {
     console.log('🔍 测试：多轮编程对话场景')
@@ -311,5 +311,5 @@ user = find_user_by_email(users, 'bob@example.com')
     }
     
     console.log('📝 响应预览:', responseText)
-  }, 30000)
+  })
 })

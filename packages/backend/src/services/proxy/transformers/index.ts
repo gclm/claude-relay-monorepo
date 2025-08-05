@@ -6,8 +6,7 @@
 // 简化后的转换器接口
 export type { Transformer } from './base-transformer'
 export { ClaudeToGeminiTransformer } from './claude-to-gemini'
-// TODO: 重构后的 OpenAI 转换器
-// export { ClaudeToOpenAITransformer } from './claude-to-openai'
+export { ClaudeToOpenAITransformer } from './claude-to-openai'
 
 // 注册表 - 这是主要的导出，proxy 服务使用
 export { transformerRegistry } from './transformer-registry'
