@@ -268,20 +268,37 @@ export class ClaudeToGeminiTransformer implements Transformer {
   }
 
   /**
-   * 从响应中提取内容 - 利用 SDK 简化
+   * 从响应中提取内容 - 完整处理所有 Part 类型
    */
   private extractContentFromResponse(response: GenerateContentResponse): any[] {
     const content: any[] = []
     
-    // 利用 SDK 的 text 访问器
-    if (response.text) {
-      content.push({ type: 'text', text: response.text })
-    }
-
-    // 处理函数调用
+    // 处理所有 parts，不使用 response.text 访问器避免丢失非文本内容
     const candidate = response.candidates?.[0]
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
+        // 处理文本内容
+        if (part.text) {
+          content.push({ type: 'text', text: part.text })
+        }
+        
+        // 处理思考内容 - 保留模型的思考过程
+        if (part.thought && part.text) {
+          content.push({ 
+            type: 'text', 
+            text: `[思考过程]\n${part.text}` 
+          })
+        }
+        
+        // 处理思考签名 - 可在后续请求中重用
+        if (part.thoughtSignature) {
+          content.push({
+            type: 'text',
+            text: `[思考签名: ${part.thoughtSignature}]`
+          })
+        }
+        
+        // 处理函数调用
         if (part.functionCall) {
           const toolUseId = this.generateToolUseId()
           if (part.functionCall.name) {
@@ -294,7 +311,28 @@ export class ClaudeToGeminiTransformer implements Transformer {
             })
           }
         }
+        
+        // 处理代码执行结果
+        if (part.codeExecutionResult) {
+          content.push({
+            type: 'text',
+            text: `[代码执行结果]\n${part.codeExecutionResult.output || '执行完成'}`
+          })
+        }
+        
+        // 处理可执行代码
+        if (part.executableCode) {
+          content.push({
+            type: 'text',
+            text: `\`\`\`${part.executableCode.language || ''}\n${part.executableCode.code}\n\`\`\``
+          })
+        }
       }
+    }
+    
+    // 如果没有任何内容，fallback 到 SDK 的 text 访问器
+    if (content.length === 0 && response.text) {
+      content.push({ type: 'text', text: response.text })
     }
 
     return content
