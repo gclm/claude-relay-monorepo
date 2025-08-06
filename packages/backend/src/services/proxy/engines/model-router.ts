@@ -6,24 +6,14 @@
 import type { MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/messages'
 import type { RouteConfig, ModelTarget } from './types'
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages'
-import { get_encoding } from '@dqbd/tiktoken'
+import { getEncoding } from 'js-tiktoken'
 
 export class ModelRouterService {
   private encoder: any
-  
+
   constructor() {
-    // 使用 cl100k_base 编码器（GPT-4 和 Claude 3 使用的编码器）
-    this.encoder = get_encoding('cl100k_base')
-    console.log('✅ TikToken 编码器初始化成功，使用精确 token 计算')
-  }
-  
-  /**
-   * 清理资源
-   */
-  destroy() {
-    if (this.encoder && typeof this.encoder.free === 'function') {
-      this.encoder.free()
-    }
+    this.encoder = getEncoding('cl100k_base')
+    console.log('✅ 模型路由器初始化成功，使用兼容的 token 计算')
   }
   
   /**
@@ -44,7 +34,7 @@ export class ModelRouterService {
     
     // 1. 长上下文模型选择
     if (rules.longContext) {
-      const tokenCount = this.calculateTokenCount(
+      const tokenCount = await this.calculateTokenCount(
         request.messages as MessageParam[],
         request.system,
         request.tools as Tool[]
@@ -87,7 +77,7 @@ export class ModelRouterService {
   
   /**
    * 精确计算消息的总 token 数
-   * 使用 TikToken cl100k_base 编码器进行精确计算
+   * 使用 js-tiktoken cl100k_base 编码器进行精确计算
    */
   private calculateTokenCount(
     messages: MessageParam[],
