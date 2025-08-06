@@ -38,7 +38,7 @@ export function logClaudeRequest(request: MessageCreateParamsBase): void {
 
 export function logProviderRequest(provider: string, url: string, request: any): void {
   console.log(`=== ${provider} Request (转换后) ===`)
-  console.log(`URL: ${url}`)s
+  console.log(`URL: ${url}`)
   try {
     console.log(JSON.stringify(request, null, 2))
   } catch (error) {
