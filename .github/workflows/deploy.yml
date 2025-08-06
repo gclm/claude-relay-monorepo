@@ -47,9 +47,6 @@ jobs:
           # 复制前端构建产物到assets目录
           cp -r packages/frontend/dist/* deploy/assets/
           
-          # 创建 .assetsignore 忽略 Nuxt 生成的 _worker.js
-          echo "_worker.js" > deploy/assets/.assetsignore
-          
           # 在根目录创建统一的 wrangler.toml，让 Wrangler 处理 TypeScript 构建
           cat > deploy/wrangler.toml << EOF
           name = "claude-relay-unified"

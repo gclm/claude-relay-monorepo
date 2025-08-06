@@ -46,19 +46,25 @@ export default defineNuxtConfig({
     }
   },
   
-  // Cloudflare Pages 部署配置
+  // 静态部署配置 - 适配 Workers Assets
   nitro: {
-    preset: 'cloudflare-pages',
+    preset: 'static',  // 生成纯静态文件，不生成 _worker.js
     output: {
       dir: 'dist',
       publicDir: 'dist'
     },
     // 压缩
     compressPublicAssets: true,
-    // 预渲染优化
+    // 预渲染所有管理页面
     prerender: {
       crawlLinks: false,
-      routes: ['/']  // 明确指定预渲染路由
+      routes: [
+        '/',
+        '/admin',
+        '/admin/dashboard',
+        '/admin/providers',
+        '/admin/key-pool'
+      ]
     },
     // 路由缓存规则
     routeRules: {
