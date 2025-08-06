@@ -1,5 +1,0 @@
-{
-  "name": "claude-relay-backend",
-  "compatibility_date": "2025-07-25",
-  "main": "packages/backend/src/index.ts"
-}
