@@ -449,6 +449,14 @@ export class ClaudeToGeminiTransformer implements Transformer {
     delete obj.additionalProperties
     delete obj.const
 
+    // 处理 format 属性 - Gemini 对 STRING 类型只支持 'enum' 和 'date-time'
+    if (obj.type === 'string' && obj.format) {
+      const supportedFormats = ['enum', 'date-time']
+      if (!supportedFormats.includes(obj.format)) {
+        delete obj.format
+      }
+    }
+
     // 递归处理子属性
     Object.values(obj).forEach(value => this.removeUnsupportedProperties(value))
   }
