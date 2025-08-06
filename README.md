@@ -14,31 +14,52 @@
 
 ### 1️⃣ Claude 账号管理
 通过 OAuth 认证管理多个 Claude 账号，支持 Token 自动刷新
-![Claude 账号管理](./docs/images/claude-account.png)
+
+<a href="./docs/images/claude-account.png" target="_blank">
+  <img src="./docs/images/claude-account.png" width="800" alt="Claude 账号管理" />
+</a>
 
 ### 2️⃣ 添加供应商
 轻松添加第三方 AI 模型供应商（Google AI Studio、魔搭等）
-![添加供应商](./docs/images/add-provider.png)
+
+<a href="./docs/images/add-provider.png" target="_blank">
+  <img src="./docs/images/add-provider.png" width="800" alt="添加供应商" />
+</a>
 
 ### 3️⃣ 供应商管理
 管理所有第三方模型供应商，支持编辑、删除、密钥池管理
-![供应商列表](./docs/images/provider-list.png)
+
+<a href="./docs/images/provider-list.png" target="_blank">
+  <img src="./docs/images/provider-list.png" width="800" alt="供应商列表" />
+</a>
 
 ### 4️⃣ Key Pool 管理
 企业级密钥池管理：批量导入、状态监控、智能轮换
-![密钥池管理](./docs/images/key-pool-management.png)
+
+<a href="./docs/images/key-pool-management.png" target="_blank">
+  <img src="./docs/images/key-pool-management.png" width="800" alt="密钥池管理" />
+</a>
 
 ### 5️⃣ 添加路由配置
 配置请求路由策略，设置模型映射关系
-![路由配置](./docs/images/route-config.png)
+
+<a href="./docs/images/route-config.png" target="_blank">
+  <img src="./docs/images/route-config.png" width="800" alt="路由配置" />
+</a>
 
 ### 6️⃣ 查看路由详情
 查看供应商的路由配置详情，支持多模型管理
-![供应商详情](./docs/images/provider-details.png)
+
+<a href="./docs/images/provider-details.png" target="_blank">
+  <img src="./docs/images/provider-details.png" width="800" alt="供应商详情" />
+</a>
 
 ### 7️⃣ 模型选择
 灵活切换官方 Claude 和第三方模型，实现智能路由
-![模型选择](./docs/images/model-selection.png)
+
+<a href="./docs/images/model-selection.png" target="_blank">
+  <img src="./docs/images/model-selection.png" width="800" alt="模型选择" />
+</a>
 
 ## 🚀 快速开始
 
