@@ -55,15 +55,16 @@ export default defineNuxtConfig({
     },
     // 压缩
     compressPublicAssets: true,
-    // 预渲染所有管理页面
+    // 预渲染静态管理页面
     prerender: {
       crawlLinks: false,
       routes: [
         '/',
         '/admin',
         '/admin/dashboard',
-        '/admin/providers',
-        '/admin/key-pool'
+        '/admin/add-provider',
+        '/admin/add-route-config'
+        // 注意：/admin/key-pool/[providerId] 是动态路由，无法预渲染
       ]
     },
     // 路由缓存规则
