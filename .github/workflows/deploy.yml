@@ -40,7 +40,6 @@ jobs:
           # 创建统一构建目录
           mkdir -p build/static
           mkdir -p build/worker
-          mkdir -p build/shared
           
           # 复制前端构建产物到静态资源目录
           cp -r packages/frontend/dist/* build/static/
@@ -48,12 +47,14 @@ jobs:
           # 复制后端源码到worker目录
           cp -r packages/backend/src/* build/worker/
           
-          # 复制shared类型定义到worker同级目录，修复路径引用
-          cp -r shared/* build/shared/
+          # 复制shared模块到worker目录内部，简化路径引用
+          cp -r shared build/worker/
           
-          # 修复所有引用shared模块的路径
-          find build/worker -name "*.ts" -exec sed -i "s|../../../../shared/|../shared/|g" {} \;
-          find build/worker -name "*.ts" -exec sed -i "s|../../../../../shared/|../shared/|g" {} \;
+          # 统一修复所有shared模块的路径引用为相对路径
+          find build/worker -name "*.ts" -exec sed -i "s|../../../../shared/|./shared/|g" {} \;
+          find build/worker -name "*.ts" -exec sed -i "s|../../../../../shared/|./shared/|g" {} \;
+          find build/worker -name "*.ts" -exec sed -i "s|../../shared/|./shared/|g" {} \;
+          find build/worker -name "*.ts" -exec sed -i "s|../shared/|./shared/|g" {} \;
           
           echo "Build structure created:"
           find build -type f | head -20
