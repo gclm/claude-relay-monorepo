@@ -35,63 +35,27 @@ jobs:
           npm run build
           echo "Frontend built to packages/frontend/dist/"
           
-      - name: Prepare Unified Build
-        run: |
-          # 创建统一构建目录
-          mkdir -p build/static
-          mkdir -p build/worker
-          
-          # 复制前端构建产物到静态资源目录
-          cp -r packages/frontend/dist/* build/static/
-          
-          # 复制后端源码到worker目录
-          cp -r packages/backend/src/* build/worker/
-          
-          # 复制shared模块到worker目录内部，简化路径引用
-          cp -r shared build/worker/
-          
-          # 统一修复所有shared模块的路径引用为相对路径
-          find build/worker -name "*.ts" -exec sed -i "s|../../../../shared/|./shared/|g" {} \;
-          find build/worker -name "*.ts" -exec sed -i "s|../../../../../shared/|./shared/|g" {} \;
-          find build/worker -name "*.ts" -exec sed -i "s|../../shared/|./shared/|g" {} \;
-          find build/worker -name "*.ts" -exec sed -i "s|../shared/|./shared/|g" {} \;
-          
-          echo "Build structure created:"
-          find build -type f | head -20
-          
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy Unified Application
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
         run: |
-          cd build
+          # 创建统一部署目录
+          mkdir -p deploy/assets
           
-          # 创建 package.json 以包含必要的依赖
-          cat > package.json << EOF
-          {
-            "name": "claude-relay-unified",
-            "version": "1.0.0",
-            "main": "worker/index.ts",
-            "dependencies": {
-              "@anthropic-ai/sdk": "^0.57.0",
-              "@google/genai": "^1.12.0",
-              "hono": "^4.0.0",
-              "js-tiktoken": "^1.0.20",
-              "openai": "^5.11.0"
-            }
-          }
-          EOF
+          # 复制前端构建产物到assets目录
+          cp -r packages/frontend/dist/* deploy/assets/
           
-          # 动态创建 wrangler.toml 文件
-          cat > wrangler.toml << EOF
+          # 在根目录创建统一的 wrangler.toml，让 Wrangler 处理 TypeScript 构建
+          cat > deploy/wrangler.toml << EOF
           name = "claude-relay-unified"
-          main = "worker/index.ts"
+          main = "../packages/backend/src/index.ts"
           compatibility_date = "2025-07-25"
           
           # Workers Assets 配置 - 统一服务前后端
           [assets]
-          directory = "./static"
+          directory = "./assets"
           # SPA 模式：未找到的路由返回 index.html
           not_found_handling = "single-page-application" 
           # API 路由优先处理
@@ -112,12 +76,10 @@ jobs:
           EOF
           
           echo "Generated wrangler.toml content:"
-          cat wrangler.toml
-          
-          # 安装构建依赖
-          npm install
+          cat deploy/wrangler.toml
           
           echo "Deploying unified frontend + backend to Cloudflare Workers..."
+          cd deploy
           npx wrangler deploy --config wrangler.toml \
             --var ADMIN_USERNAME:"${{ secrets.ADMIN_USERNAME }}" \
             --var ADMIN_PASSWORD:"${{ secrets.ADMIN_PASSWORD }}"
