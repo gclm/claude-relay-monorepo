@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: Deploy to Cloudflare Workers (Unified)
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy to Cloudflare Workers & Pages
+    name: Deploy Unified Frontend + Backend to Cloudflare Workers
     
     steps:
       - name: Checkout code
@@ -27,19 +27,53 @@ jobs:
       - name: Type check
         run: npm run type-check
         
-      - name: Deploy Backend to Cloudflare Workers
+      - name: Build Frontend
+        env:
+          NUXT_PUBLIC_API_BASE_URL: ${{ secrets.NUXT_PUBLIC_API_BASE_URL }}
+        run: |
+          cd packages/frontend
+          npm run build
+          echo "Frontend built to packages/frontend/dist/"
+          
+      - name: Prepare Unified Build
+        run: |
+          # 创建统一构建目录
+          mkdir -p build/static
+          mkdir -p build/worker
+          
+          # 复制前端构建产物到静态资源目录
+          cp -r packages/frontend/dist/* build/static/
+          
+          # 复制后端源码到worker目录
+          cp -r packages/backend/src/* build/worker/
+          
+          # 复制shared类型定义
+          cp -r shared build/
+          
+          echo "Build structure created:"
+          find build -type f | head -20
+          
+      - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           KV_NAMESPACE_ID: ${{ secrets.KV_NAMESPACE_ID }}
         run: |
-          cd packages/backend
+          cd build
           
           # 动态创建 wrangler.toml 文件
           cat > wrangler.toml << EOF
-          name = "claude-relay-backend"
-          main = "src/index.ts"
+          name = "claude-relay-unified"
+          main = "worker/index.ts"
           compatibility_date = "2025-07-25"
+          
+          # Workers Assets 配置 - 统一服务前后端
+          [assets]
+          directory = "./static"
+          # SPA 模式：未找到的路由返回 index.html
+          not_found_handling = "single-page-application" 
+          # API 路由优先处理
+          run_worker_first = ["/api/*", "/v1/*", "/oauth/*"]
           
           [[kv_namespaces]]
           binding = "CLAUDE_RELAY_ADMIN_KV"
@@ -58,25 +92,7 @@ jobs:
           echo "Generated wrangler.toml content:"
           cat wrangler.toml
           
-          echo "Deploying backend with environment variables..."
+          echo "Deploying unified frontend + backend to Cloudflare Workers..."
           npx wrangler deploy --config wrangler.toml \
             --var ADMIN_USERNAME:"${{ secrets.ADMIN_USERNAME }}" \
             --var ADMIN_PASSWORD:"${{ secrets.ADMIN_PASSWORD }}"
-            
-      - name: Build Frontend
-        env:
-          NUXT_PUBLIC_API_BASE_URL: https://claude-relay-backend.117yelixin.workers.dev
-        run: |
-          cd packages/frontend
-          npm run build
-          
-      - name: Deploy Frontend to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          cd packages/frontend
-          echo "Deploying frontend to Cloudflare Pages..."
-          npx wrangler pages deploy dist \
-            --project-name=claude-relay-frontend \
-            --commit-message="Deploy frontend from GitHub Actions"
