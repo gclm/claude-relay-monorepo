@@ -102,6 +102,12 @@ export class ClaudeToGeminiTransformer implements Transformer {
     if (claudeRequest.top_k !== undefined) config.topK = claudeRequest.top_k
     if (claudeRequest.stop_sequences) config.stopSequences = claudeRequest.stop_sequences
 
+    // 思考配置 - 为 Gemini 2.5 Pro 启用思考内容返回
+    config.thinkingConfig = {
+      includeThoughts: true,  // 必须设置为 true 才能看到思考过程
+      thinkingBudget: -1      // -1 表示自动，让模型决定思考时长
+    }
+
     // 系统指令
     if (claudeRequest.system) {
       config.systemInstruction = typeof claudeRequest.system === 'string' 
