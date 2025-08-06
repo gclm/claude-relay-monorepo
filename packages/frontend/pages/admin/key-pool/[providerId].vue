@@ -127,7 +127,7 @@
                   <option value="exhausted">限流</option>
                   <option value="error">错误</option>
                 </select>
-                <button @click="deleteKey(key.id)"
+                <button @click="showDeleteConfirm(key.id, key.key)"
                         class="text-red-600 hover:text-red-700 p-2">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -161,6 +161,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 确认删除对话框 -->
+    <ConfirmDialog
+      :visible="showConfirmDialog"
+      :title="confirmDialogConfig?.title"
+      :message="confirmDialogConfig?.message"
+      :description="confirmDialogConfig?.description"
+      :type="confirmDialogConfig?.type || 'danger'"
+      :loading="confirmLoading"
+      confirm-text="删除"
+      cancel-text="取消"
+      @confirm="handleConfirmDialogConfirm"
+      @cancel="handleConfirmDialogCancel"
+    />
 
     <!-- 添加密钥模态框 -->
     <div v-if="showAddKeyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -218,6 +232,7 @@
 <script setup lang="ts">
 import type { ApiKey, KeyPoolStats } from '../../../../../shared/types/key-pool'
 import type { ModelProvider } from '../../../../../shared/types/admin/providers'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog.vue'
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -241,6 +256,17 @@ const showAddKeyModal = ref(false)
 const showBatchImportModal = ref(false)
 const newKey = ref('')
 const batchKeys = ref('')
+
+// 确认删除相关状态
+const showConfirmDialog = ref(false)
+const confirmLoading = ref(false)
+const confirmDialogConfig = ref<{
+  title: string
+  message: string
+  description: string
+  type: 'danger' | 'warning' | 'info'
+} | null>(null)
+const deletingKeyId = ref<string | null>(null)
 
 // 检查认证状态
 onMounted(async () => {
@@ -355,12 +381,26 @@ const updateKeyStatus = async (keyId: string, status: string) => {
   }
 }
 
-// 删除密钥
-const deleteKey = async (keyId: string) => {
-  if (!confirm('确定要删除这个密钥吗？')) return
+// 显示删除确认对话框
+const showDeleteConfirm = (keyId: string, keyValue: string) => {
+  deletingKeyId.value = keyId
+  confirmDialogConfig.value = {
+    title: '删除密钥',
+    message: '确定要删除这个 API 密钥吗？',
+    description: `密钥: ${maskApiKey(keyValue)}\n\n删除后将无法恢复，请谨慎操作。`,
+    type: 'danger'
+  }
+  showConfirmDialog.value = true
+}
+
+// 处理确认删除
+const handleConfirmDialogConfirm = async () => {
+  if (!deletingKeyId.value) return
+  
+  confirmLoading.value = true
   
   try {
-    await $fetch(`/api/admin/key-pool/${providerId}/keys/${keyId}`, {
+    await $fetch(`/api/admin/key-pool/${providerId}/keys/${deletingKeyId.value}`, {
       method: 'DELETE',
       baseURL: config.public.apiBaseUrl
     })
@@ -368,7 +408,19 @@ const deleteKey = async (keyId: string) => {
     await loadKeyPoolData()
   } catch (error) {
     console.error('Failed to delete key:', error)
+  } finally {
+    confirmLoading.value = false
+    showConfirmDialog.value = false
+    deletingKeyId.value = null
+    confirmDialogConfig.value = null
   }
+}
+
+// 取消删除
+const handleConfirmDialogCancel = () => {
+  showConfirmDialog.value = false
+  deletingKeyId.value = null
+  confirmDialogConfig.value = null
 }
 
 // 执行维护
