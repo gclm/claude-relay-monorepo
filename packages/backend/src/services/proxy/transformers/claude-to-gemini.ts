@@ -69,13 +69,8 @@ export class ClaudeToGeminiTransformer implements Transformer {
       // 流式响应
       const streamResponse = await client.models.generateContentStream(geminiParams)
       
-      // 记录 Gemini 流式响应
-      logProviderResponse('Gemini', streamResponse)
-      
+      // 流式响应的详细日志在 transformStreamResponse 中处理
       const transformedStream = await this.transformStreamResponse(streamResponse)
-      
-      // 记录转换后的 Claude 流式响应
-      logClaudeResponse(transformedStream)
       
       return transformedStream
     } else {
@@ -363,6 +358,10 @@ export class ClaudeToGeminiTransformer implements Transformer {
 
         try {
           for await (const chunk of streamResponse) {
+            // 记录原始 Gemini 流响应块
+            console.log('=== Gemini Stream Chunk (原始) ===')
+            console.log(JSON.stringify(chunk, null, 2))
+            
             // 发送 message_start
             if (!messageStarted) {
               controller.enqueue(encoder.encode(self.createSSEEvent('message_start', {
@@ -603,6 +602,10 @@ export class ClaudeToGeminiTransformer implements Transformer {
    * 创建 SSE 事件格式
    */
   private createSSEEvent(event: string, data: Record<string, any>): string {
+    // 记录转换后的 Claude 流事件
+    console.log('=== Claude Stream Event (转换后) ===')
+    console.log(JSON.stringify({ event, data }, null, 2))
+    
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
   }
 

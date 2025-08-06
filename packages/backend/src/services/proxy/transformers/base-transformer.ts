@@ -28,23 +28,9 @@ export interface Transformer {
  * 简单的日志函数
  */
 export function logClaudeRequest(request: MessageCreateParamsBase): void {
-  // 在 Cloudflare Workers 中，每个 console.log 会创建单独的日志条目
   console.log('=== Claude Request (原始) ===')
-  // 尝试分段输出，避免大对象被截断
   try {
-    const requestStr = JSON.stringify(request, null, 2)
-    // 如果请求太大，分段输出
-    if (requestStr.length > 1000) {
-      console.log('Request size:', requestStr.length, 'characters')
-      console.log('Model:', request.model)
-      console.log('Stream:', request.stream)
-      console.log('Max tokens:', request.max_tokens)
-      console.log('Messages count:', request.messages?.length || 0)
-      // 输出前1000个字符
-      console.log('Request preview:', requestStr.substring(0, 1000) + '...')
-    } else {
-      console.log(requestStr)
-    }
+    console.log(JSON.stringify(request, null, 2))
   } catch (error) {
     console.error('Error logging Claude request:', error)
   }
@@ -54,16 +40,7 @@ export function logProviderRequest(provider: string, url: string, request: any):
   console.log(`=== ${provider} Request (转换后) ===`)
   console.log(`URL: ${url}`)
   try {
-    const requestStr = JSON.stringify(request, null, 2)
-    if (requestStr.length > 1000) {
-      console.log('Request size:', requestStr.length, 'characters')
-      console.log('Model:', request.model)
-      console.log('Contents length:', request.contents?.length || 0)
-      console.log('Config:', JSON.stringify(request.config || {}, null, 2))
-      console.log('Request preview:', requestStr.substring(0, 1000) + '...')
-    } else {
-      console.log(requestStr)
-    }
+    console.log(JSON.stringify(request, null, 2))
   } catch (error) {
     console.error(`Error logging ${provider} request:`, error)
   }
