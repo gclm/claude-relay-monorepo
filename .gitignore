@@ -18,7 +18,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment files
+# Environment files (if needed for future use)
 .env
 .env.local
 .env.production
@@ -37,7 +37,7 @@ lerna-debug.log*
 
 # Cloudflare
 .wrangler/
-.dev.vars
+# Note: wrangler.toml files are kept for development use
 packages/backend/wrangler.toml
 packages/frontend/wrangler.toml
 

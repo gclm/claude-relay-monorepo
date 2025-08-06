@@ -8,8 +8,8 @@
 - `npm run dev:frontend` - 启动 Nuxt 前端开发服务器 (localhost:3000)
 - `npm run dev:backend` - 使用 Bun 启动后端开发服务器 (localhost:8787)
 - `npm run build:all` - 构建前后端
-- `npm run deploy:all` - 部署到 Cloudflare
-- `npm run test` - 运行集成测试 (Vitest)
+- `npm run deploy:all` - 统一部署到 Cloudflare Workers
+- `npm run test:backend` - 运行集成测试 (Vitest)
 - `npm run lint` - 代码检查
 - `npm run type-check` - TypeScript 类型检查
 
@@ -24,14 +24,21 @@
 │       ├── src/           # 源代码
 │       └── test/          # 集成测试
 ├── shared/                # 共享 TypeScript 类型和常量
-└── docs/                 # 文档
+├── docs/                  # 项目文档
+│   ├── deployment.md      # 部署指南
+│   ├── development.md     # 开发指南
+│   ├── api.md            # API 文档
+│   └── images/           # 项目截图和演示 GIF
+└── .github/workflows/     # GitHub Actions 配置
 ```
 
 ### 技术栈
-- **前端**: Nuxt 4, Vue 3, Tailwind CSS, 部署到 Cloudflare Pages
-- **后端**: Hono, TypeScript, Bun 运行时, 部署到 Cloudflare Workers
+- **前端**: Nuxt 4, Vue 3, Tailwind CSS
+- **后端**: Hono, TypeScript, Bun 运行时
+- **部署**: Cloudflare Workers (统一部署架构，前后端合并)
 - **存储**: Cloudflare KV
 - **测试**: Vitest (专注集成测试)
+- **静态资源**: Workers Assets (前端构建产物)
 
 ## 核心功能
 
@@ -93,16 +100,27 @@ CLAUDE_CLIENT_SECRET=your_client_secret  # 可选
 
 ## 部署流程
 
-1. `npm run deploy:backend` - 先部署后端确保 API 可用
-2. `npm run deploy:frontend` - 部署前端连接线上 API
-3. `npm run deploy:all` - 自动化完整部署
+### 统一部署架构
+项目采用 **Cloudflare Workers + Assets** 统一部署架构：
+- 前端构建产物通过 Workers Assets 提供静态文件服务
+- 后端 Hono 应用处理 API 请求
+- 单个 Worker 同时处理前后端请求，简化部署和维护
+
+### 部署命令
+1. `npm run deploy:all` - 自动化完整部署（推荐）
+2. `npm run deploy:backend` - 仅部署后端
+3. `npm run deploy:frontend` - 仅部署前端（通常不需要单独执行）
+
+### 部署配置
+通过 GitHub Actions 自动部署，配置文件：`.github/workflows/deploy.yml`
 
 ## 测试策略
 
 - **集成测试优先**: 专注于 API 端点和完整功能验证
 - **测试文件**: 如 `claude-proxy.gemini.test.ts` 进行自动化验证
-- **测试命令**: `npm run test` 运行所有集成测试
-- **可视化**: `npm run test:ui` 启动 Vitest UI 界面
+- **测试命令**: `npm run test:backend` 运行所有集成测试
+- **可视化**: `npm run test:backend:ui` 启动 Vitest UI 界面
+- **监听模式**: `npm run test:backend:watch` 文件变化时自动运行测试
 
 ## 访问方式
 
@@ -111,8 +129,9 @@ CLAUDE_CLIENT_SECRET=your_client_secret  # 可选
 - 后端: `http://localhost:8787`
 
 ### 生产环境
-- 管理中心: `https://claude-relay-frontend.pages.dev/admin`
-- 后端 API: `https://claude-relay-backend.117yelixin.workers.dev`
+- **统一访问地址**: `https://claude-relay-unified.{你的子域名}.workers.dev`
+- **管理中心**: `https://claude-relay-unified.{你的子域名}.workers.dev/admin`
+- **API 端点**: `https://claude-relay-unified.{你的子域名}.workers.dev/v1/messages`
 
 ## 代码组织原则
 
