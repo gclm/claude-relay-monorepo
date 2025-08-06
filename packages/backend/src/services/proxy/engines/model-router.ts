@@ -38,12 +38,10 @@ async function getGlobalEncoder() {
  */
 async function initializeEncoder() {
   try {
-    console.log('🔄 开始初始化 token 编码器...')
     const encoder = getEncoding('cl100k_base')
-    console.log('✅ token 编码器初始化成功')
     return encoder
   } catch (error) {
-    console.error('❌ token 编码器初始化失败，使用简化估算:', error)
+    // token 编码器初始化失败，使用简化估算
     // 提供轻量级的回退方案
     return {
       encode: (text: string) => {
@@ -55,9 +53,6 @@ async function initializeEncoder() {
 }
 
 export class ModelRouterService {
-  constructor() {
-    console.log('✅ 模型路由器初始化成功，使用兼容的 token 计算')
-  }
   
   /**
    * 根据请求特征和路由配置选择模型

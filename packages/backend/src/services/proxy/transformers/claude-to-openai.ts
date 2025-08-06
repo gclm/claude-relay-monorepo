@@ -73,36 +73,16 @@ export class ClaudeToOpenAITransformer implements Transformer {
       // 流式响应
       const streamParams = this.buildStreamingParams(claudeRequest, model)
       
-      // 记录转换后的 OpenAI 请求
-      logProviderRequest('OpenAI', `${this.baseURL}/chat/completions`, streamParams)
-      
       const stream = await client.chat.completions.create(streamParams)
       
-      // 记录 OpenAI 流式响应
-      logProviderResponse('OpenAI', stream)
-      
-      const transformedStream = await this.transformStreamResponse(stream)
-      
-      // 记录转换后的 Claude 流式响应
-      logClaudeResponse(transformedStream)
-      
-      return transformedStream
+      return await this.transformStreamResponse(stream)
     } else {
       // 非流式响应
       const params = this.buildNonStreamingParams(claudeRequest, model)
       
-      // 记录转换后的 OpenAI 请求
-      logProviderRequest('OpenAI', `${this.baseURL}/chat/completions`, params)
-      
-      const response = await client.chat.completions.create(params)
-      
-      // 记录 OpenAI 响应
-      logProviderResponse('OpenAI', response)
+      const response = await client.chat.completions.create(params)      
       
       const claudeResponse = this.transformResponse(response)
-      
-      // 记录转换后的 Claude 响应
-      logClaudeResponse(claudeResponse)
       
       return claudeResponse
     }

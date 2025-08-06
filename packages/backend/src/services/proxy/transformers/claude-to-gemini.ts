@@ -57,35 +57,18 @@ export class ClaudeToGeminiTransformer implements Transformer {
   async processRequest(claudeRequest: MessageCreateParamsBase, model: string): Promise<Message | ReadableStream> {
     const client = this.getClient()
     
-    // 记录原始 Claude 请求
-    logClaudeRequest(claudeRequest)
-    
     const geminiParams = this.buildGeminiParams(claudeRequest, model)
     
-    // 记录转换后的 Gemini 请求
-    logProviderRequest('Gemini', `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, geminiParams)
-
     if (claudeRequest.stream) {
       // 流式响应
       const streamResponse = await client.models.generateContentStream(geminiParams)
       
-      // 流式响应的详细日志在 transformStreamResponse 中处理
-      const transformedStream = await this.transformStreamResponse(streamResponse)
-      
-      return transformedStream
+      return await this.transformStreamResponse(streamResponse)
     } else {
       // 非流式响应
       const response = await client.models.generateContent(geminiParams)
       
-      // 记录 Gemini 响应
-      logProviderResponse('Gemini', response)
-      
-      const claudeResponse = this.transformNormalResponse(response)
-      
-      // 记录转换后的 Claude 响应
-      logClaudeResponse(claudeResponse)
-      
-      return claudeResponse
+      return this.transformNormalResponse(response)
     }
   }
 
@@ -303,7 +286,7 @@ export class ClaudeToGeminiTransformer implements Transformer {
         // 处理思考签名（如果单独出现，没有伴随 thought）
         if (part.thoughtSignature && !part.thought) {
           // 记录日志，但通常不需要单独处理
-          console.log('Found standalone thoughtSignature:', part.thoughtSignature)
+          // 找到独立的 thoughtSignature
         }
         
         // 处理函数调用
@@ -340,7 +323,7 @@ export class ClaudeToGeminiTransformer implements Transformer {
     
     // 如果没有任何内容，返回一个空文本块
     if (content.length === 0) {
-      console.warn('No content extracted from Gemini response')
+      // 无内容提取
       content.push({ type: 'text', text: '' })
     }
 
@@ -365,8 +348,7 @@ export class ClaudeToGeminiTransformer implements Transformer {
         try {
           for await (const chunk of streamResponse) {
             // 记录原始 Gemini 流响应块
-            console.log('=== Gemini Stream Chunk (原始) ===')
-            console.log(JSON.stringify(chunk, null, 2))
+            // 流式响应块日志已禁用
             
             // 发送 message_start
             if (!messageStarted) {
@@ -667,8 +649,7 @@ export class ClaudeToGeminiTransformer implements Transformer {
    */
   private createSSEEvent(event: string, data: Record<string, any>): string {
     // 记录转换后的 Claude 流事件
-    console.log('=== Claude Stream Event (转换后) ===')
-    console.log(JSON.stringify({ event, data }, null, 2))
+    // SSE 事件日志已禁用
     
     return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
   }
