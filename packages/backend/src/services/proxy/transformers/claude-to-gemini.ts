@@ -455,6 +455,64 @@ export class ClaudeToGeminiTransformer implements Transformer {
                     delta: { type: 'text_delta', text: part.text }
                   })))
                 }
+                // 处理工具调用
+                else if (part.functionCall) {
+                  // 如果当前有其他类型的块，先结束它
+                  if (currentBlockType !== null) {
+                    if (currentBlockType === 'thinking' && accumulatedSignature) {
+                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                        type: 'content_block_delta',
+                        index: contentIndex,
+                        delta: { type: 'signature_delta', signature: accumulatedSignature }
+                      })))
+                      accumulatedSignature = ''
+                    }
+                    
+                    controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                      type: 'content_block_stop',
+                      index: contentIndex
+                    })))
+                    contentIndex++
+                  }
+                  
+                  // 生成 tool_use_id 并记录映射
+                  const toolUseId = self.generateToolUseId()
+                  if (part.functionCall.name) {
+                    self.toolUseIdToFunctionName.set(toolUseId, part.functionCall.name)
+                  }
+                  
+                  // 发送工具使用块开始
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
+                    type: 'content_block_start',
+                    index: contentIndex,
+                    content_block: {
+                      type: 'tool_use',
+                      id: toolUseId,
+                      name: part.functionCall.name,
+                      input: {}
+                    }
+                  })))
+                  
+                  // 发送工具调用的参数（作为完整的 JSON）
+                  const argsJson = JSON.stringify(part.functionCall.args || {})
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                    type: 'content_block_delta',
+                    index: contentIndex,
+                    delta: {
+                      type: 'input_json_delta',
+                      partial_json: argsJson
+                    }
+                  })))
+                  
+                  // 结束工具使用块
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                    type: 'content_block_stop',
+                    index: contentIndex
+                  })))
+                  
+                  contentIndex++
+                  currentBlockType = null
+                }
               }
             }
 
