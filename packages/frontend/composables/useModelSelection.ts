@@ -125,12 +125,22 @@ export const useModelSelection = () => {
     }
   }
 
-  // 只在第一次使用时初始化，避免重复加载覆盖用户选择
-  if (!isInitialized.value) {
-    isInitialized.value = true
-    loadCurrentModelSelection()
-    loadAvailableRouteConfigs()
+  // 初始化数据加载
+  const initializeData = async () => {
+    if (!isInitialized.value) {
+      isInitialized.value = true
+      await Promise.all([
+        loadCurrentModelSelection(),
+        loadAvailableRouteConfigs()
+      ])
+    } else {
+      // 如果已初始化，仅重新加载路由配置（避免覆盖用户的模型选择）
+      await loadAvailableRouteConfigs()
+    }
   }
+  
+  // 每次使用时都尝试加载数据
+  initializeData()
 
   return {
     // 响应式数据
