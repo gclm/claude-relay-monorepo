@@ -8,11 +8,54 @@ import type { RouteConfig, ModelTarget } from './types'
 import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages'
 import { getEncoding } from 'js-tiktoken'
 
-export class ModelRouterService {
-  private encoder: any
+// 全局单例缓存 - 跨请求复用
+let globalEncoder: any = null
+let encoderInitPromise: Promise<any> | null = null
 
+/**
+ * 获取全局 token 编码器实例
+ * 使用单例模式确保在 Worker 实例生命周期内只初始化一次
+ */
+async function getGlobalEncoder() {
+  // 如果已经初始化，直接返回
+  if (globalEncoder) {
+    return globalEncoder
+  }
+  
+  // 如果正在初始化，等待完成
+  if (encoderInitPromise) {
+    return await encoderInitPromise
+  }
+  
+  // 开始初始化
+  encoderInitPromise = initializeEncoder()
+  globalEncoder = await encoderInitPromise
+  return globalEncoder
+}
+
+/**
+ * 初始化 token 编码器，包含错误处理和回退机制
+ */
+async function initializeEncoder() {
+  try {
+    console.log('🔄 开始初始化 token 编码器...')
+    const encoder = getEncoding('cl100k_base')
+    console.log('✅ token 编码器初始化成功')
+    return encoder
+  } catch (error) {
+    console.error('❌ token 编码器初始化失败，使用简化估算:', error)
+    // 提供轻量级的回退方案
+    return {
+      encode: (text: string) => {
+        // 简单估算：平均 1 token ≈ 4 字符（适用于英文和中文混合）
+        return new Array(Math.ceil(text.length / 4))
+      }
+    }
+  }
+}
+
+export class ModelRouterService {
   constructor() {
-    this.encoder = getEncoding('cl100k_base')
     console.log('✅ 模型路由器初始化成功，使用兼容的 token 计算')
   }
   
@@ -79,28 +122,30 @@ export class ModelRouterService {
    * 精确计算消息的总 token 数
    * 使用 js-tiktoken cl100k_base 编码器进行精确计算
    */
-  private calculateTokenCount(
+  private async calculateTokenCount(
     messages: MessageParam[],
     system: any,
     tools: Tool[]
-  ): number {
+  ): Promise<number> {
+    // 获取全局编码器实例
+    const encoder = await getGlobalEncoder()
     let tokenCount = 0
     
     // 处理消息
     if (Array.isArray(messages)) {
       messages.forEach((message) => {
         if (typeof message.content === 'string') {
-          tokenCount += this.encoder.encode(message.content).length
+          tokenCount += encoder.encode(message.content).length
         } else if (Array.isArray(message.content)) {
           message.content.forEach((contentPart: any) => {
             if (contentPart.type === 'text') {
-              tokenCount += this.encoder.encode(contentPart.text).length
+              tokenCount += encoder.encode(contentPart.text).length
             } else if (contentPart.type === 'tool_use') {
-              tokenCount += this.encoder.encode(
+              tokenCount += encoder.encode(
                 JSON.stringify(contentPart.input)
               ).length
             } else if (contentPart.type === 'tool_result') {
-              tokenCount += this.encoder.encode(
+              tokenCount += encoder.encode(
                 typeof contentPart.content === 'string'
                   ? contentPart.content
                   : JSON.stringify(contentPart.content)
@@ -113,15 +158,15 @@ export class ModelRouterService {
     
     // 处理系统提示
     if (typeof system === 'string') {
-      tokenCount += this.encoder.encode(system).length
+      tokenCount += encoder.encode(system).length
     } else if (Array.isArray(system)) {
       system.forEach((item: any) => {
         if (item.type !== 'text') return
         if (typeof item.text === 'string') {
-          tokenCount += this.encoder.encode(item.text).length
+          tokenCount += encoder.encode(item.text).length
         } else if (Array.isArray(item.text)) {
           item.text.forEach((textPart: any) => {
-            tokenCount += this.encoder.encode(textPart || '').length
+            tokenCount += encoder.encode(textPart || '').length
           })
         }
       })
@@ -131,10 +176,10 @@ export class ModelRouterService {
     if (tools) {
       tools.forEach((tool: Tool) => {
         if (tool.description) {
-          tokenCount += this.encoder.encode(tool.name + tool.description).length
+          tokenCount += encoder.encode(tool.name + tool.description).length
         }
         if (tool.input_schema) {
-          tokenCount += this.encoder.encode(JSON.stringify(tool.input_schema)).length
+          tokenCount += encoder.encode(JSON.stringify(tool.input_schema)).length
         }
       })
     }
