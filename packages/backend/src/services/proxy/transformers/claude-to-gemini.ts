@@ -5,7 +5,6 @@
  */
 
 import type { Transformer } from './base-transformer'
-import { logClaudeRequest, logProviderRequest, logProviderResponse, logClaudeResponse } from './base-transformer'
 import type { 
   MessageCreateParamsBase,
   Message,

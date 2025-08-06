@@ -5,7 +5,6 @@
  */
 
 import type { Transformer } from './base-transformer'
-import { logClaudeRequest, logProviderRequest, logProviderResponse, logClaudeResponse } from './base-transformer'
 import type { 
   MessageCreateParamsBase,
   Message,
@@ -67,7 +66,7 @@ export class ClaudeToOpenAITransformer implements Transformer {
     const client = this.getClient()
     
     // 记录原始 Claude 请求
-    logClaudeRequest(claudeRequest)
+    // logClaudeRequest(claudeRequest)
 
     if (claudeRequest.stream) {
       // 流式响应
