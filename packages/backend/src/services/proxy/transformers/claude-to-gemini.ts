@@ -277,25 +277,32 @@ export class ClaudeToGeminiTransformer implements Transformer {
     const candidate = response.candidates?.[0]
     if (candidate?.content?.parts) {
       for (const part of candidate.content.parts) {
-        // 处理文本内容
-        if (part.text) {
-          content.push({ type: 'text', text: part.text })
+        // 处理思考内容 - 转换为 Claude 的 thinking block
+        if (part.thought) {
+          // Gemini 的 thought 字段表示这是思考内容
+          // 将其转换为 Claude 的 thinking 类型
+          const thoughtText = part.text || part.thought || ''
+          if (thoughtText) {
+            content.push({
+              type: 'thinking',
+              thinking: thoughtText,
+              // 如果有 thoughtSignature，添加到 signature 字段
+              signature: part.thoughtSignature || undefined
+            })
+          }
         }
-        
-        // 处理思考内容 - 保留模型的思考过程
-        if (part.thought && part.text) {
+        // 处理普通文本内容（非思考内容）
+        else if (part.text) {
           content.push({ 
             type: 'text', 
-            text: `[思考过程]\n${part.text}` 
+            text: part.text 
           })
         }
         
-        // 处理思考签名 - 可在后续请求中重用
-        if (part.thoughtSignature) {
-          content.push({
-            type: 'text',
-            text: `[思考签名: ${part.thoughtSignature}]`
-          })
+        // 处理思考签名（如果单独出现，没有伴随 thought）
+        if (part.thoughtSignature && !part.thought) {
+          // 记录日志，但通常不需要单独处理
+          console.log('Found standalone thoughtSignature:', part.thoughtSignature)
         }
         
         // 处理函数调用
@@ -330,9 +337,10 @@ export class ClaudeToGeminiTransformer implements Transformer {
       }
     }
     
-    // 如果没有任何内容，fallback 到 SDK 的 text 访问器
-    if (content.length === 0 && response.text) {
-      content.push({ type: 'text', text: response.text })
+    // 如果没有任何内容，返回一个空文本块
+    if (content.length === 0) {
+      console.warn('No content extracted from Gemini response')
+      content.push({ type: 'text', text: '' })
     }
 
     return content
@@ -349,6 +357,9 @@ export class ClaudeToGeminiTransformer implements Transformer {
       async start(controller) {
         let messageStarted = false
         let contentIndex = 0
+        // 跟踪当前内容块的类型和状态
+        let currentBlockType: 'thinking' | 'text' | null = null
+        let accumulatedSignature = ''
 
         try {
           for await (const chunk of streamResponse) {
@@ -370,32 +381,104 @@ export class ClaudeToGeminiTransformer implements Transformer {
               messageStarted = true
             }
 
-            // 利用 SDK 的 text 访问器简化文本处理
-            if (chunk.text) {
-              // 开始内容块
-              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
-                type: 'content_block_start',
-                index: contentIndex,
-                content_block: { type: 'text', text: '' }
-              })))
+            // 处理响应的各个部分
+            const candidate = chunk.candidates?.[0]
+            if (candidate?.content?.parts) {
+              for (const part of candidate.content.parts) {
+                // 处理思考内容
+                if (part.thought && part.text) {
+                  // 如果当前不是思考块，先结束之前的块并开始新的思考块
+                  if (currentBlockType !== 'thinking') {
+                    if (currentBlockType !== null) {
+                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                        type: 'content_block_stop',
+                        index: contentIndex
+                      })))
+                      contentIndex++
+                    }
+                    
+                    // 开始新的思考内容块
+                    controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
+                      type: 'content_block_start',
+                      index: contentIndex,
+                      content_block: { type: 'thinking', thinking: '' }
+                    })))
+                    currentBlockType = 'thinking'
+                  }
 
-              // 发送文本增量
-              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
-                type: 'content_block_delta',
-                index: contentIndex,
-                delta: { type: 'text_delta', text: chunk.text }
-              })))
+                  // 发送思考内容增量
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                    type: 'content_block_delta',
+                    index: contentIndex,
+                    delta: { type: 'thinking_delta', thinking: part.text }
+                  })))
+                  
+                  // 如果有 thoughtSignature，累积它
+                  if (part.thoughtSignature) {
+                    accumulatedSignature = part.thoughtSignature
+                  }
+                }
+                // 处理普通文本内容
+                else if (part.text && !part.thought) {
+                  // 如果当前不是文本块，先结束之前的块并开始新的文本块
+                  if (currentBlockType !== 'text') {
+                    if (currentBlockType !== null) {
+                      // 如果结束的是思考块且有签名，发送签名
+                      if (currentBlockType === 'thinking' && accumulatedSignature) {
+                        controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                          type: 'content_block_delta',
+                          index: contentIndex,
+                          delta: { type: 'signature_delta', signature: accumulatedSignature }
+                        })))
+                        accumulatedSignature = ''
+                      }
+                      
+                      controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                        type: 'content_block_stop',
+                        index: contentIndex
+                      })))
+                      contentIndex++
+                    }
+                    
+                    // 开始新的文本内容块
+                    controller.enqueue(encoder.encode(self.createSSEEvent('content_block_start', {
+                      type: 'content_block_start',
+                      index: contentIndex,
+                      content_block: { type: 'text', text: '' }
+                    })))
+                    currentBlockType = 'text'
+                  }
 
-              // 结束内容块
-              controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
-                type: 'content_block_stop',
-                index: contentIndex
-              })))
-              contentIndex++
+                  // 发送文本增量
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                    type: 'content_block_delta',
+                    index: contentIndex,
+                    delta: { type: 'text_delta', text: part.text }
+                  })))
+                }
+              }
             }
 
             // 处理结束
             if (chunk.candidates?.[0]?.finishReason) {
+              // 先结束当前内容块
+              if (currentBlockType !== null) {
+                // 如果是思考块且有签名，先发送签名
+                if (currentBlockType === 'thinking' && accumulatedSignature) {
+                  controller.enqueue(encoder.encode(self.createSSEEvent('content_block_delta', {
+                    type: 'content_block_delta',
+                    index: contentIndex,
+                    delta: { type: 'signature_delta', signature: accumulatedSignature }
+                  })))
+                }
+                
+                controller.enqueue(encoder.encode(self.createSSEEvent('content_block_stop', {
+                  type: 'content_block_stop',
+                  index: contentIndex
+                })))
+              }
+              
+              // 发送消息结束信息
               controller.enqueue(encoder.encode(self.createSSEEvent('message_delta', {
                 type: 'message_delta',
                 delta: {
